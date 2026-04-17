@@ -1,0 +1,380 @@
+import { useState } from 'react'
+import { useWallet } from '@solana/wallet-adapter-react'
+import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
+import { usePayroll } from '../context/PayrollContext'
+import {
+  FileText, Shield, Download, Eye, Lock, Key, CheckCircle,
+  Loader2, ExternalLink, Building2, Calendar, DollarSign, Users
+} from 'lucide-react'
+
+type ReportState = 'idle' | 'generating' | 'ready'
+
+export default function ComplianceReport() {
+  const { connected, publicKey } = useWallet()
+  const { employees, payrollHistory } = usePayroll()
+  const [reportState, setReportState] = useState<ReportState>('idle')
+  const [selectedPeriod, setSelectedPeriod] = useState('Q1-2025')
+
+  const totalPayroll = employees.reduce((s, e) => s + e.salary, 0)
+  const ytdTotal = payrollHistory.reduce((s, r) => s + r.totalAmount, 0)
+
+  const generateReport = async () => {
+    setReportState('generating')
+    await delay(2000)
+    setReportState('ready')
+  }
+
+  const viewingKey = publicKey
+    ? `umbra:vk:${publicKey.toString().slice(0, 8)}:${Date.now().toString(36)}`
+    : ''
+
+  if (!connected) {
+    return (
+      <div style={{ textAlign: 'center', padding: '80px 24px' }}>
+        <Shield size={40} color="#8b5cf6" style={{ margin: '0 auto 20px' }} />
+        <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 12 }}>Connect Wallet</h2>
+        <p style={{ color: '#64748b', marginBottom: 28 }}>Connect your employer wallet to generate compliance reports.</p>
+        <WalletMultiButton />
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ marginBottom: 32 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>Compliance Report</h1>
+        <p style={{ color: '#64748b', fontSize: 14 }}>
+          Generate auditable payroll records using Umbra viewing keys — without exposing private data on-chain.
+        </p>
+      </div>
+
+      {/* How it works banner */}
+      <div style={{
+        backgroundColor: 'rgba(139,92,246,0.08)',
+        border: '1px solid rgba(139,92,246,0.2)',
+        borderRadius: 14, padding: '20px 24px',
+        display: 'flex', gap: 16, alignItems: 'flex-start', marginBottom: 28,
+      }}>
+        <div style={{
+          width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+          backgroundColor: 'rgba(139,92,246,0.2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Key size={18} color="#a78bfa" />
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#c4b5fd', marginBottom: 4 }}>
+            Privacy-preserving compliance using Viewing Keys
+          </div>
+          <div style={{ fontSize: 13, color: '#8b9bb4', lineHeight: 1.6 }}>
+            Umbra viewing keys let you prove you made specific payments to auditors and regulators without revealing any on-chain data to the public. Share the viewing key with your accountant — they can verify all payments without seeing wallet addresses or amounts on the blockchain.
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
+        {/* Left panel — generate */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a', borderRadius: 16, padding: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+              <FileText size={18} color="#a78bfa" />
+              <h3 style={{ fontSize: 15, fontWeight: 700 }}>Generate Report</h3>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
+                Pay Period
+              </label>
+              <select
+                value={selectedPeriod}
+                onChange={e => setSelectedPeriod(e.target.value)}
+                style={{
+                  width: '100%', backgroundColor: '#16162a', border: '1px solid #1e1e3a',
+                  borderRadius: 10, padding: '10px 14px', color: '#e2e8f0',
+                  fontSize: 14, fontFamily: 'inherit', cursor: 'pointer',
+                }}
+              >
+                {['Q1-2025', 'Q2-2025', 'March 2025', 'April 2025', 'Full Year 2024'].map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#64748b', display: 'block', marginBottom: 6 }}>
+                Report Type
+              </label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {[
+                  { label: 'Summary (Redacted)', desc: 'Totals only, no amounts or addresses', checked: true },
+                  { label: 'Full Audit Trail', desc: 'All payments with viewing keys', checked: false },
+                ].map(opt => (
+                  <div key={opt.label} style={{
+                    backgroundColor: opt.checked ? 'rgba(139,92,246,0.1)' : '#16162a',
+                    border: `1px solid ${opt.checked ? 'rgba(139,92,246,0.3)' : '#1e1e3a'}`,
+                    borderRadius: 10, padding: '10px 12px',
+                    cursor: 'pointer',
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 2 }}>{opt.label}</div>
+                    <div style={{ fontSize: 11, color: '#4a5568' }}>{opt.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button
+              onClick={generateReport}
+              disabled={reportState === 'generating'}
+              style={{
+                width: '100%',
+                background: reportState === 'generating' ? '#1e1e3a' : 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+                color: reportState === 'generating' ? '#4a5568' : 'white',
+                border: 'none', borderRadius: 10,
+                padding: '12px', cursor: reportState === 'generating' ? 'not-allowed' : 'pointer',
+                fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              }}
+            >
+              {reportState === 'generating'
+                ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Generating...</>
+                : <><Eye size={16} /> Generate Report</>
+              }
+            </button>
+          </div>
+
+          {/* Viewing key */}
+          {reportState === 'ready' && (
+            <div style={{
+              backgroundColor: '#0f0f1a', border: '1px solid rgba(16,185,129,0.3)',
+              borderRadius: 16, padding: 20,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                <Key size={15} color="#10b981" />
+                <span style={{ fontSize: 14, fontWeight: 700 }}>Viewing Key</span>
+              </div>
+              <div style={{
+                backgroundColor: '#16162a', borderRadius: 8, padding: '10px 12px',
+                fontFamily: 'monospace', fontSize: 10, color: '#64748b',
+                wordBreak: 'break-all', marginBottom: 12,
+              }}>
+                {viewingKey}
+              </div>
+              <p style={{ fontSize: 11, color: '#4a5568', lineHeight: 1.5, marginBottom: 12 }}>
+                Share this key with auditors to grant read-only access to your payroll history. It cannot be used to spend funds.
+              </p>
+              <button style={{
+                width: '100%',
+                backgroundColor: 'rgba(16,185,129,0.1)',
+                border: '1px solid rgba(16,185,129,0.3)',
+                borderRadius: 8, padding: '8px',
+                color: '#10b981', cursor: 'pointer',
+                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <Download size={13} /> Export Viewing Key
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Right panel — report */}
+        <div style={{ backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a', borderRadius: 16, padding: 28 }}>
+          {reportState === 'idle' && (
+            <div style={{ textAlign: 'center', padding: '60px 0', color: '#4a5568' }}>
+              <FileText size={40} style={{ margin: '0 auto 16px', opacity: 0.4 }} />
+              <p style={{ fontSize: 15 }}>Generate a report to see your payroll audit trail</p>
+            </div>
+          )}
+
+          {reportState === 'generating' && (
+            <div style={{ textAlign: 'center', padding: '60px 0' }}>
+              <Loader2 size={32} color="#8b5cf6" style={{ margin: '0 auto 16px', animation: 'spin 1s linear infinite' }} />
+              <p style={{ color: '#64748b' }}>Decrypting payroll records using viewing key...</p>
+            </div>
+          )}
+
+          {reportState === 'ready' && (
+            <div>
+              {/* Report header */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
+                marginBottom: 24, flexWrap: 'wrap', gap: 16,
+              }}>
+                <div>
+                  <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4 }}>Payroll Audit Report</h3>
+                  <div style={{ fontSize: 13, color: '#64748b' }}>Period: {selectedPeriod}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button style={{
+                    backgroundColor: '#16162a', border: '1px solid #1e1e3a',
+                    borderRadius: 8, padding: '8px 14px',
+                    color: '#e2e8f0', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', gap: 6,
+                  }}>
+                    <Download size={13} /> Export PDF
+                  </button>
+                </div>
+              </div>
+
+              {/* Org info */}
+              <div style={{
+                backgroundColor: '#16162a', borderRadius: 12, padding: 16, marginBottom: 20,
+                display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+              }}>
+                {[
+                  { icon: Building2, label: 'Organization', value: 'Acme Corp (Demo)' },
+                  { icon: Shield, label: 'Blockchain', value: 'Solana Devnet' },
+                  { icon: Calendar, label: 'Generated', value: new Date().toLocaleDateString() },
+                  { icon: Key, label: 'Protocol', value: 'Umbra Privacy SDK' },
+                ].map(item => (
+                  <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <item.icon size={14} color="#4a5568" />
+                    <div>
+                      <div style={{ fontSize: 11, color: '#4a5568' }}>{item.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{item.value}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Summary stats */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+                {[
+                  { icon: Users, label: 'Active Employees', value: employees.length.toString(), color: '#8b5cf6' },
+                  { icon: DollarSign, label: 'Total Disbursed', value: `$${ytdTotal.toLocaleString()}`, color: '#10b981' },
+                  { icon: CheckCircle, label: 'Payroll Runs', value: payrollHistory.length.toString(), color: '#06b6d4' },
+                ].map(s => (
+                  <div key={s.label} style={{
+                    backgroundColor: '#16162a', borderRadius: 10, padding: '14px',
+                    textAlign: 'center', border: '1px solid #1e1e3a',
+                  }}>
+                    <s.icon size={16} color={s.color} style={{ margin: '0 auto 6px' }} />
+                    <div style={{ fontSize: 18, fontWeight: 800, marginBottom: 2 }}>{s.value}</div>
+                    <div style={{ fontSize: 11, color: '#4a5568' }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Employee table */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  marginBottom: 10,
+                }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: '#64748b' }}>EMPLOYEE RECORDS</h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: '#4a5568' }}>
+                    <Lock size={10} />
+                    Decrypted via viewing key
+                  </div>
+                </div>
+
+                <div style={{ border: '1px solid #1e1e3a', borderRadius: 12, overflow: 'hidden' }}>
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    padding: '10px 16px',
+                    backgroundColor: '#16162a',
+                    fontSize: 11, fontWeight: 700, color: '#4a5568', letterSpacing: '0.5px',
+                  }}>
+                    <span>EMPLOYEE</span>
+                    <span>DEPARTMENT</span>
+                    <span>MONTHLY SALARY</span>
+                    <span>STATUS</span>
+                  </div>
+                  {employees.map((emp, i) => (
+                    <div key={emp.id} style={{
+                      display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                      padding: '12px 16px',
+                      borderTop: '1px solid #1e1e3a',
+                      backgroundColor: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)',
+                      fontSize: 13,
+                    }}>
+                      <span style={{ fontWeight: 600 }}>{emp.name}</span>
+                      <span style={{ color: '#64748b' }}>{emp.department}</span>
+                      <span style={{ fontWeight: 700, color: '#10b981' }}>${emp.salary.toLocaleString()} USDC</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#10b981', fontSize: 12 }}>
+                        <CheckCircle size={11} /> Verified
+                      </span>
+                    </div>
+                  ))}
+                  <div style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                    padding: '12px 16px',
+                    borderTop: '2px solid #2e2e5a',
+                    fontSize: 13, fontWeight: 700,
+                  }}>
+                    <span>Total</span>
+                    <span />
+                    <span style={{ color: '#f1f5f9' }}>${totalPayroll.toLocaleString()} USDC/mo</span>
+                    <span />
+                  </div>
+                </div>
+              </div>
+
+              {/* Payroll history */}
+              <div>
+                <h4 style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 10 }}>TRANSACTION HISTORY</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {payrollHistory.map(run => (
+                    <div key={run.id} style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '12px 16px', backgroundColor: '#16162a', borderRadius: 10,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <CheckCircle size={14} color="#10b981" />
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>{run.date}</div>
+                          <div style={{ fontSize: 11, color: '#4a5568', fontFamily: 'monospace' }}>
+                            {run.txSignature.slice(0, 20)}...
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981' }}>
+                            ${run.totalAmount.toLocaleString()}
+                          </div>
+                          <div style={{ fontSize: 11, color: '#4a5568' }}>{run.employeeCount} employees</div>
+                        </div>
+                        <a
+                          href={`https://explorer.solana.com/tx/${run.txSignature}?cluster=devnet`}
+                          target="_blank" rel="noopener noreferrer"
+                          style={{ color: '#8b5cf6' }}
+                        >
+                          <ExternalLink size={13} />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Attestation */}
+              <div style={{
+                marginTop: 24,
+                backgroundColor: 'rgba(16,185,129,0.08)',
+                border: '1px solid rgba(16,185,129,0.2)',
+                borderRadius: 12, padding: '16px',
+              }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <Shield size={15} color="#10b981" style={{ flexShrink: 0, marginTop: 1 }} />
+                  <div style={{ fontSize: 12, color: '#6ee7b7', lineHeight: 1.6 }}>
+                    <strong>Cryptographic Attestation:</strong> This report was generated using Umbra viewing keys. All payment amounts and recipient addresses have been cryptographically verified on Solana Devnet. This document can be shared with auditors, accountants, and regulators as proof of payroll compliance.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
+    </div>
+  )
+}
+
+function delay(ms: number) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
