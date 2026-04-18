@@ -2,39 +2,37 @@ import { useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import {
-  LayoutDashboard,
-  Users,
-  Play,
-  Eye,
-  FileText,
-  Shield,
-  Menu,
-  X,
+  LayoutDashboard, Users, Play, Eye, FileText,
+  Shield, Menu, X, Sun, Moon,
 } from 'lucide-react'
+import { useTheme, themeColors } from '../context/ThemeContext'
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, role: 'employer' },
-  { to: '/employees', label: 'Employees', icon: Users, role: 'employer' },
-  { to: '/payroll', label: 'Run Payroll', icon: Play, role: 'employer' },
-  { to: '/employee', label: 'My Balance', icon: Eye, role: 'employee' },
-  { to: '/compliance', label: 'Compliance', icon: FileText, role: 'employer' },
+  { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/employees', label: 'Employees', icon: Users },
+  { to: '/payroll', label: 'Run Payroll', icon: Play },
+  { to: '/employee', label: 'My Balance', icon: Eye },
+  { to: '/compliance', label: 'Compliance', icon: FileText },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {
   const location = useLocation()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { isDark, toggle } = useTheme()
+  const c = themeColors(isDark)
 
   const isActive = (to: string) => location.pathname === to
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#07070e', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: c.pageBg, display: 'flex', flexDirection: 'column', color: c.body }}>
       {/* Top nav */}
       <header style={{
-        backgroundColor: '#0a0a14',
-        borderBottom: '1px solid #1e1e3a',
+        backgroundColor: c.navBg,
+        borderBottom: `1px solid ${c.navBorder}`,
         position: 'sticky',
         top: 0,
         zIndex: 50,
+        boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
       }}>
         <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 64 }}>
           {/* Logo */}
@@ -47,7 +45,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 18, color: '#e2e8f0', letterSpacing: '-0.5px' }}>
+            <span style={{ fontWeight: 700, fontSize: 18, color: c.logoText, letterSpacing: '-0.5px' }}>
               Private<span style={{ color: '#8b5cf6' }}>Payroll</span>
             </span>
           </Link>
@@ -65,7 +63,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   textDecoration: 'none',
                   fontSize: 14,
                   fontWeight: 500,
-                  color: isActive(item.to) ? '#a78bfa' : '#94a3b8',
+                  color: isActive(item.to) ? '#a78bfa' : c.muted,
                   backgroundColor: isActive(item.to) ? 'rgba(139, 92, 246, 0.12)' : 'transparent',
                   transition: 'all 0.15s',
                 }}
@@ -76,7 +74,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             ))}
           </nav>
 
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Devnet badge */}
             <span style={{
               fontSize: 11, fontWeight: 600, letterSpacing: '0.5px',
@@ -86,11 +84,32 @@ export default function Layout({ children }: { children: ReactNode }) {
             }}>
               DEVNET
             </span>
+
+            {/* Theme toggle */}
+            <button
+              onClick={toggle}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                background: 'none',
+                border: `1px solid ${c.border}`,
+                borderRadius: 8,
+                width: 34, height: 34,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+                color: c.muted,
+                flexShrink: 0,
+                transition: 'border-color 0.15s, color 0.15s',
+              }}
+            >
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+
             <WalletMultiButton />
+
             {/* Mobile hamburger */}
             <button
               onClick={() => setMobileOpen(o => !o)}
-              style={{ display: 'none', background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4 }}
+              style={{ display: 'none', background: 'none', border: 'none', color: c.muted, cursor: 'pointer', padding: 4 }}
               className="show-mobile"
             >
               {mobileOpen ? <X size={22} /> : <Menu size={22} />}
@@ -100,7 +119,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
         {/* Mobile dropdown */}
         {mobileOpen && (
-          <div style={{ borderTop: '1px solid #1e1e3a', padding: '8px 16px 16px' }}>
+          <div style={{ borderTop: `1px solid ${c.navBorder}`, padding: '8px 16px 16px', backgroundColor: c.navBg }}>
             {NAV_ITEMS.map(item => (
               <Link
                 key={item.to}
@@ -112,7 +131,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                   borderRadius: 8,
                   textDecoration: 'none',
                   fontSize: 14, fontWeight: 500,
-                  color: isActive(item.to) ? '#a78bfa' : '#94a3b8',
+                  color: isActive(item.to) ? '#a78bfa' : c.muted,
                   backgroundColor: isActive(item.to) ? 'rgba(139, 92, 246, 0.12)' : 'transparent',
                 }}
               >
@@ -131,13 +150,14 @@ export default function Layout({ children }: { children: ReactNode }) {
 
       {/* Footer */}
       <footer style={{
-        borderTop: '1px solid #1e1e3a',
+        borderTop: `1px solid ${c.navBorder}`,
         padding: '20px 24px',
         textAlign: 'center',
-        color: '#4a5568',
+        color: c.faint,
         fontSize: 13,
+        backgroundColor: c.navBg,
       }}>
-        <span>PrivatePayroll &mdash; Powered by </span>
+        <span>PrivatePayroll - Powered by </span>
         <span style={{ color: '#8b5cf6' }}>Umbra Privacy SDK</span>
         <span> on Solana Devnet</span>
       </footer>

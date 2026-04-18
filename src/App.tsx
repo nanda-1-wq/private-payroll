@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { PayrollProvider } from './context/PayrollContext'
+import { ThemeProvider } from './context/ThemeContext'
 import Layout from './components/Layout'
 import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
@@ -24,8 +25,10 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <PayrollProvider>
-      <AppRoutes />
-    </PayrollProvider>
+    <ThemeProvider>
+      <PayrollProvider>
+        <AppRoutes />
+      </PayrollProvider>
+    </ThemeProvider>
   )
 }

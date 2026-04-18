@@ -5,6 +5,7 @@ import {
   Eye, Lock, ArrowDownToLine, CheckCircle, Loader2,
   Shield, ExternalLink, RefreshCw, Clock, DollarSign, UserPlus,
 } from 'lucide-react'
+import { useTheme, themeColors } from '../context/ThemeContext'
 import {
   initUmbraClient,
   isRegistered,
@@ -22,19 +23,18 @@ type WithdrawState = 'idle' | 'generating' | 'confirming' | 'processing' | 'done
 
 export default function EmployeeView() {
   const { connected, publicKey, wallet } = useWallet()
+  const { isDark } = useTheme()
+  const c = themeColors(isDark)
 
-  // Client + scan state
   const [client, setClient] = useState<UmbraClient | null>(null)
   const [loadState, setLoadState] = useState<LoadState>('idle')
   const [scanResult, setScanResult] = useState<ScanResult | null>(null)
   const [loadError, setLoadError] = useState('')
 
-  // Withdraw state
   const [withdrawState, setWithdrawState] = useState<WithdrawState>('idle')
   const [withdrawTx, setWithdrawTx] = useState('')
   const [withdrawError, setWithdrawError] = useState('')
 
-  // ── Auto-initialise + scan on wallet connect ─────────────────────────────
   const initAndScan = useCallback(async () => {
     if (!publicKey || !wallet) return
     setLoadState('idle')
@@ -43,21 +43,18 @@ export default function EmployeeView() {
     setClient(null)
 
     try {
-      // 1. Create Umbra client
-      const c = await initUmbraClient(wallet, publicKey.toBase58())
+      const cl = await initUmbraClient(wallet, publicKey.toBase58())
 
-      // 2. Register if needed
-      const registered = await isRegistered(c)
+      const registered = await isRegistered(cl)
       if (!registered) {
         setLoadState('registering')
-        await registerWithUmbra(c)
+        await registerWithUmbra(cl)
       }
 
-      setClient(c)
+      setClient(cl)
 
-      // 3. Scan for payroll UTXOs
       setLoadState('scanning')
-      const result = await scanForPayroll(c)
+      const result = await scanForPayroll(cl)
       setScanResult(result)
       setLoadState('ready')
     } catch (err: unknown) {
@@ -73,7 +70,6 @@ export default function EmployeeView() {
     }
   }, [connected, publicKey?.toBase58()]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Withdraw handler ─────────────────────────────────────────────────────
   const handleWithdraw = async () => {
     if (!client || !scanResult || scanResult.received.length === 0) return
     setWithdrawError('')
@@ -99,7 +95,7 @@ export default function EmployeeView() {
     }
   }
 
-  // ── Not connected ────────────────────────────────────────────────────────
+  // Not connected
   if (!connected) {
     return (
       <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center', padding: '80px 24px' }}>
@@ -113,29 +109,29 @@ export default function EmployeeView() {
         }}>
           <Eye size={36} color="#a78bfa" />
         </div>
-        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 12 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 12, color: c.heading }}>
           Employee Portal
         </h1>
-        <p style={{ color: '#64748b', fontSize: 16, marginBottom: 32, lineHeight: 1.6 }}>
+        <p style={{ color: c.muted, fontSize: 16, marginBottom: 32, lineHeight: 1.6 }}>
           Connect your wallet to view your encrypted salary balance. Only you can see your own payment.
         </p>
         <WalletMultiButton />
         <div style={{
           marginTop: 40,
-          backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
+          backgroundColor: c.cardBg, border: `1px solid ${c.border}`,
           borderRadius: 12, padding: 20, textAlign: 'left',
         }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#64748b', marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: c.muted, marginBottom: 12 }}>
             HOW YOUR PRIVACY IS PROTECTED
           </div>
           {[
-            { icon: Lock, text: 'Your salary amount is encrypted — not visible on the blockchain' },
+            { icon: Lock, text: 'Your salary amount is encrypted - not visible on the blockchain' },
             { icon: Shield, text: 'Payments come to a stealth address only you can claim' },
             { icon: Eye, text: 'Only you see your balance when you scan with your private key' },
           ].map((item, i) => (
             <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', marginBottom: i < 2 ? 10 : 0 }}>
               <item.icon size={14} color="#8b5cf6" style={{ flexShrink: 0, marginTop: 2 }} />
-              <span style={{ fontSize: 13, color: '#64748b' }}>{item.text}</span>
+              <span style={{ fontSize: 13, color: c.muted }}>{item.text}</span>
             </div>
           ))}
         </div>
@@ -143,26 +139,26 @@ export default function EmployeeView() {
     )
   }
 
-  // ── Loading / registering / scanning ─────────────────────────────────────
+  // Loading / registering / scanning
   if (loadState !== 'ready' && loadState !== 'error') {
     const messages: Record<string, string> = {
-      idle: 'Initialising Umbra client…',
-      registering: 'Registering with Umbra privacy protocol…',
-      scanning: 'Scanning stealth addresses for your payments…',
+      idle: 'Initialising Umbra client...',
+      registering: 'Registering with Umbra privacy protocol...',
+      scanning: 'Scanning stealth addresses for your payments...',
     }
     return (
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
         <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>My Salary</h1>
-          <p style={{ color: '#64748b', fontSize: 14 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6, color: c.heading }}>My Salary</h1>
+          <p style={{ color: c.muted, fontSize: 14 }}>
             Wallet{' '}
             <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
-              {publicKey?.toString().slice(0, 6)}…{publicKey?.toString().slice(-4)}
+              {publicKey?.toString().slice(0, 6)}...{publicKey?.toString().slice(-4)}
             </span>
           </p>
         </div>
         <div style={{
-          backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
+          backgroundColor: c.cardBg, border: `1px solid ${c.border}`,
           borderRadius: 16, padding: 48, textAlign: 'center',
         }}>
           {loadState === 'registering' ? (
@@ -177,11 +173,11 @@ export default function EmployeeView() {
               <Loader2 size={28} color="#a78bfa" style={{ animation: 'spin 1s linear infinite' }} />
             </div>
           )}
-          <p style={{ color: '#94a3b8', fontSize: 15 }}>
-            {messages[loadState] ?? 'Loading…'}
+          <p style={{ color: c.muted, fontSize: 15 }}>
+            {messages[loadState] ?? 'Loading...'}
           </p>
           {loadState === 'registering' && (
-            <p style={{ color: '#64748b', fontSize: 13, marginTop: 8 }}>
+            <p style={{ color: c.faint, fontSize: 13, marginTop: 8 }}>
               Approve the signing prompt in Phantom to continue.
             </p>
           )}
@@ -191,23 +187,24 @@ export default function EmployeeView() {
     )
   }
 
-  // ── Error state ──────────────────────────────────────────────────────────
+  // Error state
   if (loadState === 'error') {
     return (
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
         <div style={{ marginBottom: 32 }}>
-          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>My Salary</h1>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6, color: c.heading }}>My Salary</h1>
         </div>
         <div style={{
-          backgroundColor: '#0f0f1a', border: '1px solid rgba(239,68,68,0.3)',
+          backgroundColor: c.cardBg, border: '1px solid rgba(239,68,68,0.3)',
           borderRadius: 16, padding: 36, textAlign: 'center',
         }}>
           <p style={{ color: '#f87171', fontSize: 15, marginBottom: 16 }}>Failed to load balance</p>
           {loadError && (
             <div style={{
-              backgroundColor: '#16162a', borderRadius: 8, padding: '10px 14px',
-              fontSize: 12, color: '#94a3b8', fontFamily: 'monospace',
+              backgroundColor: c.rowBg, borderRadius: 8, padding: '10px 14px',
+              fontSize: 12, color: c.muted, fontFamily: 'monospace',
               wordBreak: 'break-word', textAlign: 'left', marginBottom: 20,
+              border: `1px solid ${c.border}`,
             }}>
               {loadError}
             </div>
@@ -226,7 +223,7 @@ export default function EmployeeView() {
     )
   }
 
-  // ── Ready — show balance ──────────────────────────────────────────────────
+  // Ready - show balance
   const balanceDisplay = scanResult
     ? `$${formatMicroUsdc(scanResult.totalMicroUsdc)}`
     : '$0.00'
@@ -236,11 +233,11 @@ export default function EmployeeView() {
   return (
     <div style={{ maxWidth: 680, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>My Salary</h1>
-        <p style={{ color: '#64748b', fontSize: 14 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6, color: c.heading }}>My Salary</h1>
+        <p style={{ color: c.muted, fontSize: 14 }}>
           Scanning stealth addresses for wallet{' '}
           <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
-            {publicKey?.toString().slice(0, 6)}…{publicKey?.toString().slice(-4)}
+            {publicKey?.toString().slice(0, 6)}...{publicKey?.toString().slice(-4)}
           </span>
         </p>
       </div>
@@ -255,7 +252,7 @@ export default function EmployeeView() {
         }}>
           <span style={{ fontSize: 15 }}>🎬</span>
           <span style={{ fontSize: 13, color: '#fbbf24' }}>
-            <strong>Demo mode</strong> — balance and transactions are simulated. Real ZK proofs run in production.
+            <strong>Demo mode</strong> - balance and transactions are simulated. Real ZK proofs run in production.
           </span>
         </div>
       )}
@@ -274,37 +271,39 @@ export default function EmployeeView() {
         </span>
       </div>
 
-      {/* Balance card */}
+      {/* Balance card — always uses a solid dark gradient so white text is legible in both themes */}
       <div style={{
-        background: 'linear-gradient(135deg, rgba(124,58,237,0.15), rgba(6,182,212,0.08))',
-        border: '1px solid rgba(139,92,246,0.3)',
+        background: isDark
+          ? 'linear-gradient(135deg, rgba(124,58,237,0.3), rgba(6,182,212,0.15))'
+          : 'linear-gradient(135deg, #4c1d95, #164e63)',
+        border: '1px solid rgba(139,92,246,0.4)',
         borderRadius: 20, padding: '40px 32px', textAlign: 'center',
         marginBottom: 24, position: 'relative', overflow: 'hidden',
       }}>
         <div style={{
           position: 'absolute', top: -40, right: -40,
           width: 200, height: 200,
-          background: 'radial-gradient(circle, rgba(124,58,237,0.15), transparent)',
+          background: 'radial-gradient(circle, rgba(124,58,237,0.25), transparent)',
           borderRadius: '50%',
         }} />
 
         <div style={{ position: 'relative' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '2px', color: '#64748b', marginBottom: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '2px', color: 'rgba(196,181,253,0.8)', marginBottom: 12 }}>
             ENCRYPTED BALANCE
           </div>
 
           <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', marginBottom: 4 }}>
             {isWithdrawn ? (
-              <span style={{ color: '#4a5568' }}>$0.00</span>
+              <span style={{ color: 'rgba(255,255,255,0.4)' }}>$0.00</span>
             ) : (
-              <span style={{ color: '#f1f5f9' }}>
+              <span style={{ color: '#ffffff' }}>
                 {balanceDisplay}
-                <span style={{ fontSize: 20, color: '#64748b', fontWeight: 500 }}> USDC</span>
+                <span style={{ fontSize: 20, color: 'rgba(196,181,253,0.8)', fontWeight: 500 }}> USDC</span>
               </span>
             )}
           </div>
 
-          <div style={{ fontSize: 14, color: '#64748b', marginBottom: 28 }}>
+          <div style={{ fontSize: 14, color: 'rgba(196,181,253,0.7)', marginBottom: 28 }}>
             {scanResult?.received.length ?? 0} claimable UTXO{(scanResult?.received.length ?? 0) !== 1 ? 's' : ''} found
           </div>
 
@@ -315,8 +314,8 @@ export default function EmployeeView() {
               style={{
                 background: hasBalance
                   ? 'linear-gradient(135deg, #7c3aed, #06b6d4)'
-                  : '#1e1e3a',
-                color: hasBalance ? 'white' : '#4a5568',
+                  : 'rgba(255,255,255,0.12)',
+                color: hasBalance ? 'white' : 'rgba(196,181,253,0.6)',
                 border: 'none', borderRadius: 12,
                 padding: '14px 36px', cursor: hasBalance ? 'pointer' : 'not-allowed',
                 fontSize: 16, fontWeight: 700, fontFamily: 'inherit',
@@ -333,21 +332,21 @@ export default function EmployeeView() {
           {withdrawState === 'generating' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#a78bfa' }}>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 14 }}>Generating ZK proof for withdrawal…</span>
+              <span style={{ fontSize: 14 }}>Generating ZK proof for withdrawal...</span>
             </div>
           )}
 
           {withdrawState === 'confirming' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#fbbf24' }}>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 14 }}>Confirm in Phantom wallet…</span>
+              <span style={{ fontSize: 14 }}>Confirm in Phantom wallet...</span>
             </div>
           )}
 
           {withdrawState === 'processing' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#06b6d4' }}>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 14 }}>Broadcasting to Solana…</span>
+              <span style={{ fontSize: 14 }}>Broadcasting to Solana...</span>
             </div>
           )}
 
@@ -359,7 +358,7 @@ export default function EmployeeView() {
               </div>
               {DEMO_MODE ? (
                 <div style={{ fontSize: 12, color: '#fbbf24', textAlign: 'center' }}>
-                  ⚡ Simulated tx: {withdrawTx?.slice(0, 20)}…
+                  Simulated tx: {withdrawTx?.slice(0, 20)}...
                 </div>
               ) : (
                 <a
@@ -380,7 +379,7 @@ export default function EmployeeView() {
           {withdrawError && (
             <div style={{
               marginTop: 16,
-              backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 8,
+              backgroundColor: 'rgba(239,68,68,0.15)', borderRadius: 8,
               padding: '8px 12px', fontSize: 12, color: '#f87171',
               fontFamily: 'monospace', wordBreak: 'break-word', textAlign: 'left',
             }}>
@@ -393,45 +392,30 @@ export default function EmployeeView() {
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
         {[
-          {
-            icon: DollarSign,
-            label: 'Available Balance',
-            value: isWithdrawn ? '$0.00' : balanceDisplay,
-            color: '#8b5cf6',
-          },
-          {
-            icon: CheckCircle,
-            label: 'Claimable UTXOs',
-            value: String(isWithdrawn ? 0 : (scanResult?.received.length ?? 0)),
-            color: '#10b981',
-          },
-          {
-            icon: Clock,
-            label: 'Last Scan',
-            value: 'Just now',
-            color: '#06b6d4',
-          },
+          { icon: DollarSign, label: 'Available Balance', value: isWithdrawn ? '$0.00' : balanceDisplay, color: '#8b5cf6' },
+          { icon: CheckCircle, label: 'Claimable UTXOs', value: String(isWithdrawn ? 0 : (scanResult?.received.length ?? 0)), color: '#10b981' },
+          { icon: Clock, label: 'Last Scan', value: 'Just now', color: '#06b6d4' },
         ].map(s => (
           <div key={s.label} style={{
-            backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
+            backgroundColor: c.cardBg, border: `1px solid ${c.border}`,
             borderRadius: 12, padding: '16px', textAlign: 'center',
           }}>
             <s.icon size={18} color={s.color} style={{ margin: '0 auto 8px' }} />
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginBottom: 2 }}>{s.value}</div>
-            <div style={{ fontSize: 11, color: '#4a5568' }}>{s.label}</div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: c.heading, marginBottom: 2 }}>{s.value}</div>
+            <div style={{ fontSize: 11, color: c.faint }}>{s.label}</div>
           </div>
         ))}
       </div>
 
-      {/* Rescan button */}
-      <div style={{ backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a', borderRadius: 16, padding: 24 }}>
+      {/* Rescan panel */}
+      <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700 }}>Scan Status</h3>
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: c.heading }}>Scan Status</h3>
           <button
             onClick={initAndScan}
             style={{
-              background: 'none', border: '1px solid #1e1e3a', borderRadius: 8,
-              padding: '6px 10px', color: '#64748b', cursor: 'pointer', fontFamily: 'inherit',
+              background: 'none', border: `1px solid ${c.border}`, borderRadius: 8,
+              padding: '6px 10px', color: c.muted, cursor: 'pointer', fontFamily: 'inherit',
               display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
             }}
           >
@@ -441,16 +425,16 @@ export default function EmployeeView() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-            <span style={{ color: '#64748b' }}>Stealth pool tree scanned</span>
-            <span style={{ color: '#10b981', fontWeight: 600 }}>Tree 0 ✓</span>
+            <span style={{ color: c.muted }}>Stealth pool tree scanned</span>
+            <span style={{ color: '#10b981', fontWeight: 600 }}>Tree 0</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-            <span style={{ color: '#64748b' }}>UTXOs found</span>
-            <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{scanResult?.received.length ?? 0}</span>
+            <span style={{ color: c.muted }}>UTXOs found</span>
+            <span style={{ color: c.body, fontWeight: 600 }}>{scanResult?.received.length ?? 0}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
-            <span style={{ color: '#64748b' }}>Total claimable</span>
-            <span style={{ color: '#f1f5f9', fontWeight: 600 }}>
+            <span style={{ color: c.muted }}>Total claimable</span>
+            <span style={{ color: c.body, fontWeight: 600 }}>
               {isWithdrawn ? '$0.00' : balanceDisplay} USDC
             </span>
           </div>

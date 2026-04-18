@@ -2,22 +2,24 @@ import { Link } from 'react-router-dom'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import { usePayroll } from '../context/PayrollContext'
+import { useTheme, themeColors } from '../context/ThemeContext'
 import {
   Users, DollarSign, Play, Clock, TrendingUp, ChevronRight,
   CheckCircle, AlertCircle, ExternalLink, Shield
 } from 'lucide-react'
 
-function StatCard({ icon: Icon, label, value, sub, color }: {
+function StatCard({ icon: Icon, label, value, sub, color, c }: {
   icon: typeof Users
   label: string
   value: string
   sub?: string
   color: string
+  c: ReturnType<typeof themeColors>
 }) {
   return (
     <div style={{
-      backgroundColor: '#0f0f1a',
-      border: '1px solid #1e1e3a',
+      backgroundColor: c.cardBg,
+      border: `1px solid ${c.border}`,
       borderRadius: 16, padding: '24px',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -29,11 +31,11 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
           <Icon size={18} color={color} />
         </div>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 800, color: '#f1f5f9', marginBottom: 4, letterSpacing: '-0.5px' }}>
+      <div style={{ fontSize: 28, fontWeight: 800, color: c.heading, marginBottom: 4, letterSpacing: '-0.5px' }}>
         {value}
       </div>
-      <div style={{ fontSize: 13, color: '#64748b', marginBottom: sub ? 4 : 0 }}>{label}</div>
-      {sub && <div style={{ fontSize: 12, color: color, fontWeight: 500 }}>{sub}</div>}
+      <div style={{ fontSize: 13, color: c.muted, marginBottom: sub ? 4 : 0 }}>{label}</div>
+      {sub && <div style={{ fontSize: 12, color, fontWeight: 500 }}>{sub}</div>}
     </div>
   )
 }
@@ -41,6 +43,8 @@ function StatCard({ icon: Icon, label, value, sub, color }: {
 export default function Dashboard() {
   const { connected, publicKey } = useWallet()
   const { employees, payrollHistory } = usePayroll()
+  const { isDark } = useTheme()
+  const c = themeColors(isDark)
 
   const totalPayroll = employees.reduce((s, e) => s + e.salary, 0)
   const lastRun = payrollHistory[0]
@@ -58,10 +62,10 @@ export default function Dashboard() {
         }}>
           <Shield size={32} color="#a78bfa" />
         </div>
-        <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, letterSpacing: '-0.5px' }}>
+        <h2 style={{ fontSize: 28, fontWeight: 700, marginBottom: 12, letterSpacing: '-0.5px', color: c.heading }}>
           Connect your wallet
         </h2>
-        <p style={{ color: '#64748b', fontSize: 16, marginBottom: 32, maxWidth: 400, margin: '0 auto 32px' }}>
+        <p style={{ color: c.muted, fontSize: 16, marginBottom: 32, maxWidth: 400, margin: '0 auto 32px' }}>
           Connect your Phantom wallet to access the employer dashboard and manage payroll.
         </p>
         <WalletMultiButton />
@@ -75,10 +79,10 @@ export default function Dashboard() {
       <div style={{ marginBottom: 32 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
           <div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>
+            <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6, color: c.heading }}>
               Payroll Dashboard
             </h1>
-            <p style={{ color: '#64748b', fontSize: 14 }}>
+            <p style={{ color: c.muted, fontSize: 14 }}>
               Wallet: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
                 {publicKey?.toString().slice(0, 6)}...{publicKey?.toString().slice(-4)}
               </span>
@@ -101,10 +105,11 @@ export default function Dashboard() {
 
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 32 }}>
-        <StatCard icon={Users} label="Total Employees" value={employees.length.toString()} sub="Active on payroll" color="#8b5cf6" />
-        <StatCard icon={DollarSign} label="Monthly Payroll" value={`$${totalPayroll.toLocaleString()}`} sub="USDC per month" color="#06b6d4" />
-        <StatCard icon={TrendingUp} label="Payroll Runs" value={payrollHistory.length.toString()} sub="All completed" color="#10b981" />
+        <StatCard c={c} icon={Users} label="Total Employees" value={employees.length.toString()} sub="Active on payroll" color="#8b5cf6" />
+        <StatCard c={c} icon={DollarSign} label="Monthly Payroll" value={`$${totalPayroll.toLocaleString()}`} sub="USDC per month" color="#06b6d4" />
+        <StatCard c={c} icon={TrendingUp} label="Payroll Runs" value={payrollHistory.length.toString()} sub="All completed" color="#10b981" />
         <StatCard
+          c={c}
           icon={Clock}
           label="Last Payment"
           value={lastRun ? lastRun.date : 'Never'}
@@ -115,9 +120,9 @@ export default function Dashboard() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         {/* Recent payroll history */}
-        <div style={{ backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a', borderRadius: 16, padding: 24 }}>
+        <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Recent Payroll Runs</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: c.heading }}>Recent Payroll Runs</h3>
             <Link to="/compliance" style={{ fontSize: 12, color: '#8b5cf6', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
               View all <ChevronRight size={12} />
             </Link>
@@ -127,7 +132,7 @@ export default function Dashboard() {
               <div key={run.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '12px 16px',
-                backgroundColor: '#16162a',
+                backgroundColor: c.rowBg,
                 borderRadius: 10,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -136,8 +141,8 @@ export default function Dashboard() {
                     : <AlertCircle size={16} color="#f59e0b" />
                   }
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{run.date}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{run.employeeCount} employees</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: c.body }}>{run.date}</div>
+                    <div style={{ fontSize: 12, color: c.muted }}>{run.employeeCount} employees</div>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
@@ -155,13 +160,16 @@ export default function Dashboard() {
                 </div>
               </div>
             ))}
+            {payrollHistory.length === 0 && (
+              <p style={{ color: c.faint, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>No payroll runs yet.</p>
+            )}
           </div>
         </div>
 
         {/* Employee list preview */}
-        <div style={{ backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a', borderRadius: 16, padding: 24 }}>
+        <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700 }}>Employees</h3>
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: c.heading }}>Employees</h3>
             <Link to="/employees" style={{ fontSize: 12, color: '#8b5cf6', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}>
               Manage <ChevronRight size={12} />
             </Link>
@@ -171,7 +179,7 @@ export default function Dashboard() {
               <div key={emp.id} style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '12px 16px',
-                backgroundColor: '#16162a',
+                backgroundColor: c.rowBg,
                 borderRadius: 10,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -184,15 +192,18 @@ export default function Dashboard() {
                     {emp.name.charAt(0)}
                   </div>
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 600 }}>{emp.name}</div>
-                    <div style={{ fontSize: 12, color: '#64748b' }}>{emp.department}</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: c.body }}>{emp.name}</div>
+                    <div style={{ fontSize: 12, color: c.muted }}>{emp.department}</div>
                   </div>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#e2e8f0' }}>
-                  ${emp.salary.toLocaleString()}<span style={{ fontSize: 11, color: '#64748b', fontWeight: 400 }}>/mo</span>
+                <div style={{ fontSize: 14, fontWeight: 700, color: c.body }}>
+                  ${emp.salary.toLocaleString()}<span style={{ fontSize: 11, color: c.muted, fontWeight: 400 }}>/mo</span>
                 </div>
               </div>
             ))}
+            {employees.length === 0 && (
+              <p style={{ color: c.faint, fontSize: 13, textAlign: 'center', padding: '16px 0' }}>No employees added yet.</p>
+            )}
           </div>
         </div>
       </div>
@@ -208,17 +219,16 @@ export default function Dashboard() {
             key={action.to}
             to={action.to}
             style={{
-              backgroundColor: '#0f0f1a',
-              border: '1px solid #1e1e3a',
+              backgroundColor: c.cardBg,
+              border: `1px solid ${c.border}`,
               borderRadius: 12, padding: '16px 20px',
               textDecoration: 'none',
               display: 'flex', alignItems: 'center', gap: 12,
-              transition: 'border-color 0.15s',
             }}
           >
             <action.icon size={18} color={action.color} />
-            <span style={{ fontSize: 14, fontWeight: 600, color: '#e2e8f0' }}>{action.label}</span>
-            <ChevronRight size={14} color="#4a5568" style={{ marginLeft: 'auto' }} />
+            <span style={{ fontSize: 14, fontWeight: 600, color: c.body }}>{action.label}</span>
+            <ChevronRight size={14} color={c.faint} style={{ marginLeft: 'auto' }} />
           </Link>
         ))}
       </div>

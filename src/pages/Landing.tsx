@@ -1,17 +1,18 @@
 import { Link } from 'react-router-dom'
-import { Shield, Lock, Eye, FileCheck, ChevronRight, Zap, Globe, CheckCircle } from 'lucide-react'
+import { Shield, Lock, Eye, FileCheck, ChevronRight, Zap, Globe, CheckCircle, Sun, Moon } from 'lucide-react'
+import { useTheme, themeColors } from '../context/ThemeContext'
 
 const FEATURES = [
   {
     icon: Lock,
     title: 'Confidential Transfers',
-    desc: 'Salary amounts are encrypted on-chain. Only the sender and recipient can see the values — not the public.',
+    desc: 'Salary amounts are encrypted on-chain. Only the sender and recipient can see the values, not the public.',
     color: '#8b5cf6',
   },
   {
     icon: Shield,
     title: 'Stealth Addresses',
-    desc: 'Each payment uses a one-time address derived from the employee\'s wallet. No one can link payments together.',
+    desc: "Each payment uses a one-time address derived from the employee's wallet. No one can link payments together.",
     color: '#06b6d4',
   },
   {
@@ -35,14 +36,18 @@ const STEPS = [
 ]
 
 export default function Landing() {
+  const { isDark, toggle } = useTheme()
+  const c = themeColors(isDark)
+
   return (
-    <div style={{ backgroundColor: '#07070e', minHeight: '100vh', color: '#e2e8f0' }}>
+    <div style={{ backgroundColor: c.pageBg, minHeight: '100vh', color: c.body }}>
       {/* Navbar */}
       <header style={{
         position: 'sticky', top: 0, zIndex: 50,
-        borderBottom: '1px solid #1e1e3a',
-        backgroundColor: 'rgba(7, 7, 14, 0.85)',
+        borderBottom: `1px solid ${c.navBorder}`,
+        backgroundColor: isDark ? 'rgba(7, 7, 14, 0.88)' : 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(12px)',
+        boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 64 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -54,11 +59,12 @@ export default function Landing() {
             }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-0.5px' }}>
+            <span style={{ fontWeight: 700, fontSize: 19, letterSpacing: '-0.5px', color: c.logoText }}>
               Private<span style={{ color: '#8b5cf6' }}>Payroll</span>
             </span>
           </div>
-          <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
+
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
             <span style={{
               fontSize: 11, fontWeight: 700, letterSpacing: '1px',
               color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -67,6 +73,24 @@ export default function Landing() {
             }}>
               DEVNET
             </span>
+
+            {/* Theme toggle */}
+            <button
+              onClick={toggle}
+              title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+              style={{
+                background: 'none',
+                border: `1px solid ${c.border}`,
+                borderRadius: 8,
+                width: 34, height: 34,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer',
+                color: c.muted,
+              }}
+            >
+              {isDark ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+
             <Link
               to="/dashboard"
               style={{
@@ -85,11 +109,10 @@ export default function Landing() {
 
       {/* Hero */}
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '100px 24px 80px', textAlign: 'center' }}>
-        {/* Glow background */}
         <div style={{
           position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
           width: 800, height: 500,
-          background: 'radial-gradient(ellipse at center, rgba(124, 58, 237, 0.15) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse at center, rgba(124, 58, 237, 0.12) 0%, transparent 70%)',
           pointerEvents: 'none',
         }} />
 
@@ -115,7 +138,7 @@ export default function Landing() {
             lineHeight: 1.1,
             letterSpacing: '-2px',
             marginBottom: 24,
-            color: '#f1f5f9',
+            color: c.heading,
           }}>
             Pay Your Team<br />
             <span style={{ background: 'linear-gradient(90deg, #8b5cf6, #06b6d4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -123,8 +146,8 @@ export default function Landing() {
             </span>
           </h1>
 
-          <p style={{ fontSize: 20, color: '#94a3b8', maxWidth: 580, margin: '0 auto 48px', lineHeight: 1.6 }}>
-            Confidential payroll on Solana. Employees are paid with encrypted amounts and stealth addresses — no one sees who earns what.
+          <p style={{ fontSize: 20, color: c.muted, maxWidth: 580, margin: '0 auto 48px', lineHeight: 1.6 }}>
+            Confidential payroll on Solana. Employees are paid with encrypted amounts and stealth addresses. No one sees who earns what.
           </p>
 
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -144,9 +167,9 @@ export default function Landing() {
             <Link
               to="/employee"
               style={{
-                backgroundColor: '#0f0f1a',
-                border: '1px solid #1e1e3a',
-                color: '#e2e8f0', textDecoration: 'none',
+                backgroundColor: c.cardBg,
+                border: `1px solid ${c.border}`,
+                color: c.body, textDecoration: 'none',
                 padding: '14px 32px', borderRadius: 12,
                 fontSize: 16, fontWeight: 600,
                 display: 'flex', alignItems: 'center', gap: 8,
@@ -160,9 +183,9 @@ export default function Landing() {
 
       {/* Stats bar */}
       <section style={{
-        borderTop: '1px solid #1e1e3a',
-        borderBottom: '1px solid #1e1e3a',
-        backgroundColor: '#0a0a14',
+        borderTop: `1px solid ${c.navBorder}`,
+        borderBottom: `1px solid ${c.navBorder}`,
+        backgroundColor: c.sectionBg,
       }}>
         <div style={{
           maxWidth: 1200, margin: '0 auto', padding: '32px 24px',
@@ -172,12 +195,12 @@ export default function Landing() {
           {[
             { value: '$0 Leaked', label: 'Salary data exposed on-chain' },
             { value: '1 Click', label: 'To pay your entire team' },
-            { value: '~0.0001 SOL', label: 'Per transaction fee' },
-            { value: '100%', label: 'Non-custodial & trustless' },
+            { value: 'approx. 0.0001 SOL', label: 'Per transaction fee' },
+            { value: '100%', label: 'Non-custodial and trustless' },
           ].map(stat => (
             <div key={stat.label}>
               <div style={{ fontSize: 28, fontWeight: 800, color: '#a78bfa', marginBottom: 4 }}>{stat.value}</div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>{stat.label}</div>
+              <div style={{ fontSize: 13, color: c.muted }}>{stat.label}</div>
             </div>
           ))}
         </div>
@@ -186,11 +209,11 @@ export default function Landing() {
       {/* Features */}
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 24px' }}>
         <div style={{ textAlign: 'center', marginBottom: 56 }}>
-          <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12 }}>
+          <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12, color: c.heading }}>
             Privacy-first payroll infrastructure
           </h2>
-          <p style={{ color: '#64748b', fontSize: 16 }}>
-            Built on the Umbra Privacy SDK — zero-knowledge proofs for every payment
+          <p style={{ color: c.muted, fontSize: 16 }}>
+            Built on the Umbra Privacy SDK - zero-knowledge proofs for every payment
           </p>
         </div>
         <div style={{
@@ -200,10 +223,9 @@ export default function Landing() {
         }}>
           {FEATURES.map(f => (
             <div key={f.title} style={{
-              backgroundColor: '#0f0f1a',
-              border: '1px solid #1e1e3a',
+              backgroundColor: c.cardBg,
+              border: `1px solid ${c.border}`,
               borderRadius: 16, padding: '28px 24px',
-              transition: 'border-color 0.2s',
             }}>
               <div style={{
                 width: 44, height: 44, borderRadius: 12,
@@ -214,8 +236,8 @@ export default function Landing() {
               }}>
                 <f.icon size={20} color={f.color} />
               </div>
-              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{f.title}</h3>
-              <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>{f.desc}</p>
+              <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: c.heading }}>{f.title}</h3>
+              <p style={{ color: c.muted, fontSize: 14, lineHeight: 1.6 }}>{f.desc}</p>
             </div>
           ))}
         </div>
@@ -223,16 +245,16 @@ export default function Landing() {
 
       {/* How it works */}
       <section style={{
-        backgroundColor: '#0a0a14',
-        borderTop: '1px solid #1e1e3a',
-        borderBottom: '1px solid #1e1e3a',
+        backgroundColor: c.sectionBg,
+        borderTop: `1px solid ${c.navBorder}`,
+        borderBottom: `1px solid ${c.navBorder}`,
       }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 24px' }}>
           <div style={{ textAlign: 'center', marginBottom: 56 }}>
-            <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12 }}>
+            <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12, color: c.heading }}>
               How it works
             </h2>
-            <p style={{ color: '#64748b', fontSize: 16 }}>Three steps to completely private payroll</p>
+            <p style={{ color: c.muted, fontSize: 16 }}>Three steps to completely private payroll</p>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 32 }}>
             {STEPS.map((step, i) => (
@@ -247,10 +269,10 @@ export default function Landing() {
                   {step.n}
                 </div>
                 <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>{step.title}</h3>
-                  <p style={{ color: '#64748b', fontSize: 14, lineHeight: 1.6 }}>{step.desc}</p>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: c.heading }}>{step.title}</h3>
+                  <p style={{ color: c.muted, fontSize: 14, lineHeight: 1.6 }}>{step.desc}</p>
                   {i < STEPS.length - 1 && (
-                    <div style={{ color: '#2e2e5a', marginTop: 20, fontSize: 20 }}>↓</div>
+                    <div style={{ color: c.faint, marginTop: 20, fontSize: 20 }}>v</div>
                   )}
                 </div>
               </div>
@@ -261,17 +283,17 @@ export default function Landing() {
 
       {/* Tech stack */}
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '80px 24px', textAlign: 'center' }}>
-        <p style={{ color: '#4a5568', fontSize: 13, fontWeight: 600, letterSpacing: '1.5px', marginBottom: 24 }}>
+        <p style={{ color: c.faint, fontSize: 13, fontWeight: 600, letterSpacing: '1.5px', marginBottom: 24 }}>
           BUILT WITH
         </p>
         <div style={{ display: 'flex', gap: 16, justifyContent: 'center', flexWrap: 'wrap' }}>
           {['Umbra Privacy SDK', 'Solana Web3.js', 'Phantom Wallet', 'React + Vite', 'ZK Proofs'].map(tech => (
             <span key={tech} style={{
               padding: '8px 18px',
-              backgroundColor: '#0f0f1a',
-              border: '1px solid #1e1e3a',
+              backgroundColor: c.cardBg,
+              border: `1px solid ${c.border}`,
               borderRadius: 100,
-              fontSize: 13, fontWeight: 500, color: '#94a3b8',
+              fontSize: 13, fontWeight: 500, color: c.muted,
             }}>
               {tech}
             </span>
@@ -280,9 +302,7 @@ export default function Landing() {
       </section>
 
       {/* CTA */}
-      <section style={{
-        maxWidth: 1200, margin: '0 auto', padding: '0 24px 100px',
-      }}>
+      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px 100px' }}>
         <div style={{
           background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(6, 182, 212, 0.08))',
           border: '1px solid rgba(124, 58, 237, 0.3)',
@@ -291,10 +311,10 @@ export default function Landing() {
           <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginBottom: 24 }}>
             {[0,1,2].map(i => <CheckCircle key={i} size={16} color="#10b981" />)}
           </div>
-          <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12 }}>
+          <h2 style={{ fontSize: 36, fontWeight: 700, letterSpacing: '-1px', marginBottom: 12, color: c.heading }}>
             Ready to pay privately?
           </h2>
-          <p style={{ color: '#64748b', fontSize: 16, marginBottom: 36 }}>
+          <p style={{ color: c.muted, fontSize: 16, marginBottom: 36 }}>
             Connect your Phantom wallet and run your first private payroll in minutes.
           </p>
           <Link
@@ -315,13 +335,14 @@ export default function Landing() {
 
       {/* Footer */}
       <footer style={{
-        borderTop: '1px solid #1e1e3a',
+        borderTop: `1px solid ${c.navBorder}`,
         padding: '24px', textAlign: 'center',
-        color: '#4a5568', fontSize: 13,
+        color: c.faint, fontSize: 13,
+        backgroundColor: c.sectionBg,
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
       }}>
         <Globe size={13} />
-        <span>PrivatePayroll &mdash; Powered by Umbra Privacy SDK on Solana Devnet &mdash; Superteam Frontier 2025</span>
+        <span>PrivatePayroll - Powered by Umbra Privacy SDK on Solana Devnet - Superteam Frontier 2025</span>
       </footer>
     </div>
   )
