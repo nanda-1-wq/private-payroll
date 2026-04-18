@@ -282,7 +282,7 @@ All Umbra SDK calls are isolated in `src/lib/umbra.ts` behind clean async helper
 | PRVT test token mint | `PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta` |
 | Umbra Relayer API | `https://relayer.api.umbraprivacy.com` |
 | Umbra UTXO Indexer | `https://utxo-indexer.api.umbraprivacy.com` |
-| Live frontend | _Add Vercel / Netlify URL here_ |
+| Live frontend | https://private-payroll-silk.vercel.app |
 
 ---
 
