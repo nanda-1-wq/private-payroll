@@ -11,7 +11,37 @@ import {
 
 type ReportState = 'idle' | 'generating' | 'ready'
 
-const PERIODS = ['Q1-2026', 'Q2-2026', 'April 2026', 'March 2026', 'Full Year 2025']
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function getQuarter(month: number) {
+  return Math.floor(month / 3) + 1 // month is 0-indexed
+}
+
+function buildPeriods(): string[] {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = now.getMonth() // 0-indexed
+
+  const currentQ = getQuarter(month)
+  const prevQ = currentQ === 1 ? 4 : currentQ - 1
+  const prevQYear = currentQ === 1 ? year - 1 : year
+
+  const prevMonth = month === 0 ? 11 : month - 1
+  const prevMonthYear = month === 0 ? year - 1 : year
+
+  return [
+    `Q${currentQ}-${year}`,
+    `Q${prevQ}-${prevQYear}`,
+    `${MONTH_NAMES[month]} ${year}`,
+    `${MONTH_NAMES[prevMonth]} ${prevMonthYear}`,
+    `Full Year ${year - 1}`,
+  ]
+}
+
+const PERIODS = buildPeriods()
 
 export default function ComplianceReport() {
   const { connected, publicKey } = useWallet()
@@ -20,7 +50,7 @@ export default function ComplianceReport() {
   const c = themeColors(isDark)
 
   const [reportState, setReportState] = useState<ReportState>('idle')
-  const [selectedPeriod, setSelectedPeriod] = useState('Q2-2026')
+  const [selectedPeriod, setSelectedPeriod] = useState(PERIODS[0])
 
   const [toastMsg, setToastMsg] = useState('')
   const [vkCopied, setVkCopied] = useState(false)
