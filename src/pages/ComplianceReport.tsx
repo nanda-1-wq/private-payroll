@@ -5,10 +5,13 @@ import { usePayroll } from '../context/PayrollContext'
 import { useTheme, themeColors } from '../context/ThemeContext'
 import {
   FileText, Shield, Download, Eye, Lock, Key, CheckCircle,
-  Loader2, ExternalLink, Building2, Calendar, DollarSign, Users
+  Loader2, ExternalLink, Building2, Calendar, DollarSign, Users,
+  Info, ChevronDown, ChevronUp, Copy, X,
 } from 'lucide-react'
 
 type ReportState = 'idle' | 'generating' | 'ready'
+
+const PERIODS = ['Q1-2026', 'Q2-2026', 'April 2026', 'March 2026', 'Full Year 2025']
 
 export default function ComplianceReport() {
   const { connected, publicKey } = useWallet()
@@ -17,7 +20,12 @@ export default function ComplianceReport() {
   const c = themeColors(isDark)
 
   const [reportState, setReportState] = useState<ReportState>('idle')
-  const [selectedPeriod, setSelectedPeriod] = useState('Q1-2025')
+  const [selectedPeriod, setSelectedPeriod] = useState('Q2-2026')
+
+  const [toastMsg, setToastMsg] = useState('')
+  const [vkCopied, setVkCopied] = useState(false)
+  const [showVkModal, setShowVkModal] = useState(false)
+  const [vkInfoOpen, setVkInfoOpen] = useState(false)
 
   const totalPayroll = employees.reduce((s, e) => s + e.salary, 0)
   const ytdTotal = payrollHistory.reduce((s, r) => s + r.totalAmount, 0)
@@ -31,6 +39,22 @@ export default function ComplianceReport() {
   const viewingKey = publicKey
     ? `umbra:vk:${publicKey.toString().slice(0, 8)}:${Date.now().toString(36)}`
     : ''
+
+  const showToast = (msg: string, ms = 3000) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(''), ms)
+  }
+
+  const exportPdf = () => {
+    showToast('Opening print dialog — choose "Save as PDF" in your browser')
+    setTimeout(() => window.print(), 400)
+  }
+
+  const copyViewingKey = async () => {
+    await navigator.clipboard.writeText(viewingKey)
+    setVkCopied(true)
+    setTimeout(() => setVkCopied(false), 2000)
+  }
 
   if (!connected) {
     return (
@@ -51,7 +75,88 @@ export default function ComplianceReport() {
 
   return (
     <div>
-      <div style={{ marginBottom: 32 }}>
+      {/* Toast */}
+      {toastMsg && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          backgroundColor: isDark ? '#1e1b4b' : '#312e81',
+          border: '1px solid rgba(139,92,246,0.4)',
+          borderRadius: 12, padding: '12px 20px',
+          color: '#e9d5ff', fontSize: 14, fontWeight: 500,
+          display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+          zIndex: 9999, whiteSpace: 'nowrap',
+        }}>
+          <CheckCircle size={16} color="#a78bfa" />
+          {toastMsg}
+        </div>
+      )}
+
+      {/* Viewing key modal */}
+      {showVkModal && (
+        <div
+          onClick={() => setShowVkModal(false)}
+          style={{
+            position: 'fixed', inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 1000, padding: 24,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: isDark ? '#0f0f1a' : '#ffffff',
+              border: `1px solid ${c.border}`,
+              borderRadius: 16, padding: 28,
+              maxWidth: 560, width: '100%',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Key size={16} color="#10b981" />
+                <span style={{ fontSize: 16, fontWeight: 700, color: c.heading }}>Full Viewing Key</span>
+              </div>
+              <button
+                onClick={() => setShowVkModal(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: c.faint, padding: 4 }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{
+              backgroundColor: c.rowBg, borderRadius: 10, padding: '14px 16px',
+              fontFamily: 'monospace', fontSize: 12, color: c.muted,
+              wordBreak: 'break-all', lineHeight: 1.7,
+              border: `1px solid ${c.border}`, marginBottom: 16,
+              userSelect: 'all',
+            }}>
+              {viewingKey}
+            </div>
+            <p style={{ fontSize: 12, color: c.faint, lineHeight: 1.6, marginBottom: 16 }}>
+              Select the text above to copy manually, or use the button below. Keep this key private — share only with your accountant or auditor.
+            </p>
+            <button
+              onClick={copyViewingKey}
+              style={{
+                width: '100%',
+                backgroundColor: vkCopied ? 'rgba(16,185,129,0.1)' : 'rgba(139,92,246,0.1)',
+                border: `1px solid ${vkCopied ? 'rgba(16,185,129,0.3)' : 'rgba(139,92,246,0.3)'}`,
+                borderRadius: 10, padding: '10px',
+                color: vkCopied ? '#10b981' : '#a78bfa',
+                cursor: 'pointer',
+                fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                transition: 'all 0.2s',
+              }}
+            >
+              {vkCopied ? <><CheckCircle size={15} /> Copied!</> : <><Copy size={15} /> Copy to Clipboard</>}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div className="no-print" style={{ marginBottom: 32 }}>
         <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6, color: c.heading }}>Compliance Report</h1>
         <p style={{ color: c.muted, fontSize: 14 }}>
           Generate auditable payroll records using Umbra viewing keys - without exposing private data on-chain.
@@ -59,7 +164,7 @@ export default function ComplianceReport() {
       </div>
 
       {/* How it works banner */}
-      <div style={{
+      <div className="no-print" style={{
         backgroundColor: 'rgba(139,92,246,0.08)',
         border: '1px solid rgba(139,92,246,0.2)',
         borderRadius: 14, padding: '20px 24px',
@@ -84,7 +189,7 @@ export default function ComplianceReport() {
 
       <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
         {/* Left panel - generate */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
               <FileText size={18} color="#a78bfa" />
@@ -96,7 +201,7 @@ export default function ComplianceReport() {
                 Pay Period
               </label>
               <select value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)} style={selectStyle}>
-                {['Q1-2025', 'Q2-2025', 'March 2025', 'April 2025', 'Full Year 2024'].map(p => (
+                {PERIODS.map(p => (
                   <option key={p} value={p}>{p}</option>
                 ))}
               </select>
@@ -154,34 +259,92 @@ export default function ComplianceReport() {
                 <Key size={15} color="#10b981" />
                 <span style={{ fontSize: 14, fontWeight: 700, color: c.heading }}>Viewing Key</span>
               </div>
+
+              {/* Truncated key preview */}
               <div style={{
                 backgroundColor: c.rowBg, borderRadius: 8, padding: '10px 12px',
                 fontFamily: 'monospace', fontSize: 10, color: c.muted,
-                wordBreak: 'break-all', marginBottom: 12,
+                wordBreak: 'break-all', marginBottom: 10,
                 border: `1px solid ${c.border}`,
               }}>
-                {viewingKey}
+                {viewingKey.slice(0, 36)}...
               </div>
-              <p style={{ fontSize: 11, color: c.faint, lineHeight: 1.5, marginBottom: 12 }}>
-                Share this key with auditors to grant read-only access to your payroll history. It cannot be used to spend funds.
-              </p>
-              <button style={{
-                width: '100%',
-                backgroundColor: 'rgba(16,185,129,0.1)',
-                border: '1px solid rgba(16,185,129,0.3)',
-                borderRadius: 8, padding: '8px',
-                color: '#10b981', cursor: 'pointer',
-                fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }}>
-                <Download size={13} /> Export Viewing Key
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  onClick={copyViewingKey}
+                  style={{
+                    flex: 1,
+                    backgroundColor: vkCopied ? 'rgba(16,185,129,0.1)' : 'rgba(16,185,129,0.1)',
+                    border: `1px solid ${vkCopied ? 'rgba(16,185,129,0.4)' : 'rgba(16,185,129,0.3)'}`,
+                    borderRadius: 8, padding: '8px 6px',
+                    color: '#10b981', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {vkCopied ? <><CheckCircle size={12} /> Copied!</> : <><Copy size={12} /> Copy Key</>}
+                </button>
+                <button
+                  onClick={() => setShowVkModal(true)}
+                  style={{
+                    flex: 1,
+                    backgroundColor: 'rgba(139,92,246,0.08)',
+                    border: '1px solid rgba(139,92,246,0.25)',
+                    borderRadius: 8, padding: '8px 6px',
+                    color: '#a78bfa', cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                  }}
+                >
+                  <Eye size={12} /> View Full Key
+                </button>
+              </div>
+
+              {/* Explanation toggle */}
+              <button
+                onClick={() => setVkInfoOpen(o => !o)}
+                style={{
+                  width: '100%', background: 'none',
+                  border: `1px solid ${c.border}`,
+                  borderRadius: 8, padding: '7px 10px',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  color: c.muted, fontSize: 12, fontWeight: 600,
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Info size={12} color="#a78bfa" /> What is a Viewing Key?
+                </span>
+                {vkInfoOpen ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
               </button>
+
+              {vkInfoOpen && (
+                <div style={{
+                  marginTop: 8, padding: '12px 14px',
+                  backgroundColor: 'rgba(139,92,246,0.06)',
+                  border: '1px solid rgba(139,92,246,0.2)',
+                  borderRadius: 8, fontSize: 12, color: c.muted, lineHeight: 1.7,
+                }}>
+                  A Viewing Key lets auditors verify your payroll history without accessing your wallet.
+                  Share it with your accountant or tax authority. It <strong style={{ color: c.body }}>proves payments were made</strong> but{' '}
+                  <strong style={{ color: c.body }}>cannot be used to spend funds</strong>.
+                  <br /><br />
+                  Think of it like a read-only bank statement you can hand to an auditor — they see the
+                  transactions but have no ability to move money.
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* Right panel - report */}
-        <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 28 }}>
+        <div
+          id="compliance-report"
+          style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 28 }}
+        >
           {reportState === 'idle' && (
             <div style={{ textAlign: 'center', padding: '60px 0', color: c.faint }}>
               <FileText size={40} style={{ margin: '0 auto 16px', opacity: 0.4 }} />
@@ -205,16 +368,19 @@ export default function ComplianceReport() {
               }}>
                 <div>
                   <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 4, color: c.heading }}>Payroll Audit Report</h3>
-                  <div style={{ fontSize: 13, color: c.muted }}>Period: {selectedPeriod}</div>
+                  <div style={{ fontSize: 13, color: c.muted }}>Period: <strong style={{ color: c.body }}>{selectedPeriod}</strong></div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button style={{
-                    backgroundColor: c.rowBg, border: `1px solid ${c.border}`,
-                    borderRadius: 8, padding: '8px 14px',
-                    color: c.body, cursor: 'pointer',
-                    fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
-                    display: 'flex', alignItems: 'center', gap: 6,
-                  }}>
+                <div className="no-print" style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={exportPdf}
+                    style={{
+                      backgroundColor: c.rowBg, border: `1px solid ${c.border}`,
+                      borderRadius: 8, padding: '8px 14px',
+                      color: c.body, cursor: 'pointer',
+                      fontSize: 13, fontWeight: 600, fontFamily: 'inherit',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                    }}
+                  >
                     <Download size={13} /> Export PDF
                   </button>
                 </div>
@@ -345,6 +511,7 @@ export default function ComplianceReport() {
                           href={`https://explorer.solana.com/tx/${run.txSignature}?cluster=devnet`}
                           target="_blank" rel="noopener noreferrer"
                           style={{ color: '#8b5cf6' }}
+                          className="no-print"
                         >
                           <ExternalLink size={13} />
                         </a>
@@ -380,6 +547,25 @@ export default function ComplianceReport() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        @media print {
+          /* Hide everything except the report panel */
+          .no-print { display: none !important; }
+          header, footer { display: none !important; }
+          body { background: white !important; }
+          #compliance-report {
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            border-radius: 0 !important;
+            background: white !important;
+            color: black !important;
+          }
+          /* Make the report grid fill the full width */
+          div[style*="gridTemplateColumns: '340px 1fr'"] {
+            display: block !important;
+          }
+        }
       `}</style>
     </div>
   )

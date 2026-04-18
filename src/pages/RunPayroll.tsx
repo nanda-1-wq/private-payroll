@@ -28,7 +28,8 @@ export default function RunPayroll() {
   const [step, setStep] = useState<Step>('review')
   const [txSigs, setTxSigs] = useState<string[]>([])
   const [progress, setProgress] = useState(0)
-  const [currentEmp, setCurrentEmp] = useState('')
+  const [currentEmpIndex, setCurrentEmpIndex] = useState(-1)
+  const [paidIndices, setPaidIndices] = useState<Set<number>>(new Set())
   const [errorMsg, setErrorMsg] = useState('')
   const [unregisteredEmps, setUnregisteredEmps] = useState<string[]>([])
 
@@ -67,14 +68,16 @@ export default function RunPayroll() {
 
       for (let i = 0; i < employees.length; i++) {
         const emp = employees[i]
-        setCurrentEmp(emp.name)
+        setCurrentEmpIndex(i)
         setProgress(Math.round(((i + 0.5) / employees.length) * 100))
 
         const sig = await sendPrivatePayroll(client, emp.walletAddress, emp.salary)
         signatures.push(sig)
 
+        setPaidIndices(prev => new Set(prev).add(i))
         setProgress(Math.round(((i + 1) / employees.length) * 100))
       }
+      setCurrentEmpIndex(-1)
 
       setTxSigs(signatures)
       addPayrollRun({
@@ -95,7 +98,8 @@ export default function RunPayroll() {
   const reset = () => {
     setStep('review')
     setProgress(0)
-    setCurrentEmp('')
+    setCurrentEmpIndex(-1)
+    setPaidIndices(new Set())
     setTxSigs([])
     setErrorMsg('')
     setUnregisteredEmps([])
@@ -348,35 +352,93 @@ export default function RunPayroll() {
       {step === 'processing' && (
         <div style={{
           backgroundColor: c.cardBg, border: `1px solid ${c.border}`,
-          borderRadius: 16, padding: 48, textAlign: 'center',
+          borderRadius: 16, padding: '32px 28px',
         }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: 20,
-            background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 24px',
-          }}>
-            <Loader2 size={32} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />
-          </div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8, color: c.heading }}>Processing Payroll</h2>
-          <p style={{ color: c.muted, marginBottom: 28 }}>
-            Generating ZK proofs and sending encrypted payments...
-          </p>
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: c.muted, marginBottom: 6 }}>
-              <span>Sending to {currentEmp}...</span>
-              <span>{progress}%</span>
+          {/* Header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: 14, flexShrink: 0,
+              background: 'rgba(6,182,212,0.15)', border: '1px solid rgba(6,182,212,0.3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Loader2 size={24} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />
             </div>
-            <div style={{ height: 6, backgroundColor: c.border, borderRadius: 100 }}>
+            <div>
+              <h2 style={{ fontSize: 18, fontWeight: 700, color: c.heading, marginBottom: 4 }}>Processing Payroll</h2>
+              {currentEmpIndex >= 0 && (
+                <p style={{ fontSize: 13, color: '#06b6d4', margin: 0 }}>
+                  Processing {employees[currentEmpIndex]?.name} ({currentEmpIndex + 1}/{employees.length})...
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: c.muted, marginBottom: 6 }}>
+              <span>Generating ZK proofs &amp; sending encrypted payments</span>
+              <span style={{ fontWeight: 700, color: c.body }}>{progress}%</span>
+            </div>
+            <div style={{ height: 8, backgroundColor: c.border, borderRadius: 100 }}>
               <div style={{
                 height: '100%',
                 width: `${progress}%`,
                 background: 'linear-gradient(90deg, #7c3aed, #06b6d4)',
-                borderRadius: 100, transition: 'width 0.4s ease',
+                borderRadius: 100, transition: 'width 0.5s ease',
               }} />
             </div>
           </div>
-          <p style={{ fontSize: 11, color: c.faint }}>Do not close this window</p>
+
+          {/* Per-employee rows */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+            {employees.map((emp, i) => {
+              const isPaid = paidIndices.has(i)
+              const isActive = i === currentEmpIndex
+              const isPending = !isPaid && !isActive
+              return (
+                <div key={emp.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '11px 14px',
+                  backgroundColor: isPaid
+                    ? 'rgba(16,185,129,0.07)'
+                    : isActive
+                      ? 'rgba(6,182,212,0.07)'
+                      : c.rowBg,
+                  border: `1px solid ${isPaid ? 'rgba(16,185,129,0.25)' : isActive ? 'rgba(6,182,212,0.25)' : c.border}`,
+                  borderRadius: 10,
+                  opacity: isPending ? 0.5 : 1,
+                  transition: 'all 0.3s ease',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{
+                      width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+                      background: 'linear-gradient(135deg, #7c3aed33, #06b6d433)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: 12, fontWeight: 700, color: '#a78bfa',
+                    }}>
+                      {emp.name.charAt(0)}
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: c.body }}>{emp.name}</div>
+                      <div style={{ fontSize: 11, color: c.muted }}>{emp.department}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>
+                      ${emp.salary.toLocaleString()}
+                    </span>
+                    {isPaid && <CheckCircle size={16} color="#10b981" />}
+                    {isActive && <Loader2 size={16} color="#06b6d4" style={{ animation: 'spin 1s linear infinite' }} />}
+                    {isPending && (
+                      <div style={{ width: 16, height: 16, borderRadius: '50%', border: `2px solid ${c.border}` }} />
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          <p style={{ fontSize: 11, color: c.faint, textAlign: 'center' }}>Do not close this window</p>
         </div>
       )}
 
