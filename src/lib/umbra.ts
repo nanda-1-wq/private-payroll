@@ -31,8 +31,24 @@ export type UmbraClient = Awaited<ReturnType<typeof getUmbraClient>>
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-/** Circle's devnet USDC mint */
-export const USDC_MINT_DEVNET = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
+/**
+ * Umbra's PRVT test token on devnet.
+ *
+ * This is the correct mint to use with the Umbra relayer on devnet.
+ * Circle's devnet USDC (4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU) is NOT
+ * in the relayer's supported_mints list and will cause simulation reverts.
+ *
+ * Umbra relayer supported mints (from /v1/relayer/info):
+ *   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v  ← mainnet USDC (also used on devnet by Umbra)
+ *   PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta   ← Umbra PRVT test token (preferred for demos)
+ *   So11111111111111111111111111111111111111112      ← wSOL
+ *   Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB  ← USDT
+ *   CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH  ← CASH
+ */
+export const PRVT_MINT_DEVNET = 'PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta'
+/** Mainnet USDC address — also used by Umbra on devnet (in relayer's supported_mints). */
+export const USDC_MINT_DEVNET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
+
 const USDC_DECIMALS = 6
 
 const RPC_URL = 'https://api.devnet.solana.com'
@@ -160,6 +176,38 @@ export async function registerWithUmbra(client: UmbraClient): Promise<string[]> 
   return register({ confidential: true, anonymous: true })
 }
 
+// ─── Employee registration check ─────────────────────────────────────────────
+
+/**
+ * Check which of the given wallet addresses are NOT yet registered with Umbra.
+ *
+ * Call this before running payroll so you can show a clear error instead of a
+ * cryptic simulation revert.
+ *
+ * @returns Array of unregistered wallet addresses (empty = all good).
+ */
+export async function findUnregisteredEmployees(
+  client: UmbraClient,
+  walletAddresses: string[]
+): Promise<string[]> {
+  const query = getUserAccountQuerierFunction({ client })
+
+  const results = await Promise.allSettled(
+    walletAddresses.map(async (addr) => {
+      try {
+        const result = await query(addr as any)
+        return result.state === 'exists' ? null : addr
+      } catch {
+        return addr // treat errors as unregistered
+      }
+    })
+  )
+
+  return results
+    .map((r) => (r.status === 'fulfilled' ? r.value : null))
+    .filter((addr): addr is string => addr !== null)
+}
+
 // ─── Payroll (employer side) ──────────────────────────────────────────────────
 
 /**
@@ -178,7 +226,7 @@ export async function sendPrivatePayroll(
   client: UmbraClient,
   recipientAddress: string,
   usdAmount: number,
-  mint: string = USDC_MINT_DEVNET
+  mint: string = PRVT_MINT_DEVNET
 ): Promise<string> {
   const zkProver = getCreateReceiverClaimableUtxoFromPublicBalanceProver()
   const createUtxo = getPublicBalanceToReceiverClaimableUtxoCreatorFunction(
@@ -240,7 +288,7 @@ export async function claimAndWithdraw(
   client: UmbraClient,
   utxos: any[],
   totalMicroUsdc: bigint,
-  mint: string = USDC_MINT_DEVNET
+  mint: string = PRVT_MINT_DEVNET
 ): Promise<string> {
   if (utxos.length === 0) throw new Error('No UTXOs to claim.')
 

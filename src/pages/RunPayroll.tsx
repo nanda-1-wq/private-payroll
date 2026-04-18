@@ -12,9 +12,10 @@ import {
   isRegistered,
   registerWithUmbra,
   sendPrivatePayroll,
+  findUnregisteredEmployees,
 } from '../lib/umbra'
 
-type Step = 'review' | 'registering' | 'confirming' | 'processing' | 'complete' | 'error'
+type Step = 'review' | 'registering' | 'checking' | 'confirming' | 'processing' | 'complete' | 'error'
 
 export default function RunPayroll() {
   const { connected, publicKey, wallet } = useWallet()
@@ -25,6 +26,7 @@ export default function RunPayroll() {
   const [progress, setProgress] = useState(0)
   const [currentEmp, setCurrentEmp] = useState('')
   const [errorMsg, setErrorMsg] = useState('')
+  const [unregisteredEmps, setUnregisteredEmps] = useState<string[]>([])
 
   const totalPayroll = employees.reduce((s, e) => s + e.salary, 0)
   const today = new Date().toISOString().split('T')[0]
@@ -44,7 +46,19 @@ export default function RunPayroll() {
         await registerWithUmbra(client)
       }
 
-      // ── 3. Confirm + process each employee ─────────────────────────────
+      // ── 3. Check employee registration ─────────────────────────────────
+      setStep('checking')
+      const walletAddresses = employees.map((e) => e.walletAddress)
+      const unregistered = await findUnregisteredEmployees(client, walletAddresses)
+      if (unregistered.length > 0) {
+        setUnregisteredEmps(unregistered)
+        throw new Error(
+          `${unregistered.length} employee wallet${unregistered.length > 1 ? 's are' : ' is'} not registered with Umbra. ` +
+          `They must connect to the Employee Portal and complete Umbra registration before receiving payroll.`
+        )
+      }
+
+      // ── 4. Confirm + process each employee ─────────────────────────────
       setStep('confirming')
 
       // Small delay so user sees the "Confirm in Phantom" step
@@ -86,6 +100,7 @@ export default function RunPayroll() {
     setCurrentEmp('')
     setTxSigs([])
     setErrorMsg('')
+    setUnregisteredEmps([])
   }
 
   if (!connected) {
@@ -269,6 +284,31 @@ export default function RunPayroll() {
         </div>
       )}
 
+      {/* ── Checking step ───────────────────────────────────────────────── */}
+      {step === 'checking' && (
+        <div style={{
+          backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
+          borderRadius: 16, padding: 48, textAlign: 'center',
+        }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 20,
+            background: 'rgba(6,182,212,0.12)', border: '1px solid rgba(6,182,212,0.25)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 24px',
+          }}>
+            <Users size={32} color="#06b6d4" />
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Verifying Recipients</h2>
+          <p style={{ color: '#64748b', fontSize: 15 }}>
+            Checking that all employees have registered with Umbra…
+          </p>
+          <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#06b6d4' }}>
+            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontSize: 14 }}>Querying on-chain accounts…</span>
+          </div>
+        </div>
+      )}
+
       {/* ── Confirming step ─────────────────────────────────────────────── */}
       {step === 'confirming' && (
         <div style={{
@@ -408,9 +448,31 @@ export default function RunPayroll() {
               {errorMsg}
             </div>
           )}
-          <p style={{ color: '#64748b', marginBottom: 28 }}>
-            Make sure your wallet is connected, you have USDC on devnet, and employees are registered.
-          </p>
+          {unregisteredEmps.length > 0 ? (
+            <div style={{ marginBottom: 24, textAlign: 'left' }}>
+              <p style={{ color: '#94a3b8', fontSize: 14, marginBottom: 12 }}>
+                The following employee wallets are not registered with Umbra.
+                They must visit the <strong>Employee Portal</strong> and complete the one-time Umbra setup before they can receive private payroll:
+              </p>
+              <div style={{
+                backgroundColor: '#16162a', borderRadius: 10, padding: '10px 14px',
+                fontFamily: 'monospace', fontSize: 11, color: '#f87171',
+              }}>
+                {unregisteredEmps.map((addr) => {
+                  const emp = employees.find((e) => e.walletAddress === addr)
+                  return (
+                    <div key={addr} style={{ marginBottom: 4 }}>
+                      {emp ? `${emp.name}: ` : ''}{addr}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <p style={{ color: '#64748b', marginBottom: 28 }}>
+              Make sure your wallet is connected, you have PRVT test tokens on devnet, and employees are registered with Umbra.
+            </p>
+          )}
           <button onClick={reset} style={{
             background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
             color: 'white', border: 'none', borderRadius: 10,
