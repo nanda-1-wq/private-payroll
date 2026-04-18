@@ -5,59 +5,87 @@ import { usePayroll } from '../context/PayrollContext'
 import { Link } from 'react-router-dom'
 import {
   Play, Lock, Shield, CheckCircle, AlertCircle, ExternalLink,
-  Loader2, Users, DollarSign, Zap, Info
+  Loader2, Users, DollarSign, Zap, Info, UserPlus,
 } from 'lucide-react'
+import {
+  initUmbraClient,
+  isRegistered,
+  registerWithUmbra,
+  sendPrivatePayroll,
+} from '../lib/umbra'
 
-type Step = 'review' | 'confirming' | 'processing' | 'complete' | 'error'
+type Step = 'review' | 'registering' | 'confirming' | 'processing' | 'complete' | 'error'
 
 export default function RunPayroll() {
-  const { connected, publicKey } = useWallet()
+  const { connected, publicKey, wallet } = useWallet()
   const { employees, addPayrollRun } = usePayroll()
+
   const [step, setStep] = useState<Step>('review')
-  const [txSig, setTxSig] = useState('')
+  const [txSigs, setTxSigs] = useState<string[]>([])
   const [progress, setProgress] = useState(0)
   const [currentEmp, setCurrentEmp] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
 
   const totalPayroll = employees.reduce((s, e) => s + e.salary, 0)
   const today = new Date().toISOString().split('T')[0]
 
   const runPayroll = async () => {
-    setStep('confirming')
+    if (!publicKey || !wallet) return
+    setErrorMsg('')
 
-    // Simulate wallet confirmation delay
-    await delay(1200)
-    setStep('processing')
+    try {
+      // ── 1. Initialise Umbra client ──────────────────────────────────────
+      setStep('registering')
+      const client = await initUmbraClient(wallet, publicKey.toBase58())
 
-    // Simulate processing each employee
-    for (let i = 0; i < employees.length; i++) {
-      setCurrentEmp(employees[i].name)
-      setProgress(Math.round(((i + 1) / employees.length) * 100))
-      await delay(800)
+      // ── 2. Check / perform registration ────────────────────────────────
+      const alreadyRegistered = await isRegistered(client)
+      if (!alreadyRegistered) {
+        await registerWithUmbra(client)
+      }
+
+      // ── 3. Confirm + process each employee ─────────────────────────────
+      setStep('confirming')
+
+      // Small delay so user sees the "Confirm in Phantom" step
+      await delay(600)
+      setStep('processing')
+
+      const signatures: string[] = []
+
+      for (let i = 0; i < employees.length; i++) {
+        const emp = employees[i]
+        setCurrentEmp(emp.name)
+        setProgress(Math.round(((i + 0.5) / employees.length) * 100))
+
+        const sig = await sendPrivatePayroll(client, emp.walletAddress, emp.salary)
+        signatures.push(sig)
+
+        setProgress(Math.round(((i + 1) / employees.length) * 100))
+      }
+
+      setTxSigs(signatures)
+      addPayrollRun({
+        date: today,
+        totalAmount: totalPayroll,
+        employeeCount: employees.length,
+        txSignature: signatures[signatures.length - 1] ?? '',
+        status: 'completed',
+      })
+      setStep('complete')
+    } catch (err: unknown) {
+      console.error('Payroll failed:', err)
+      setErrorMsg(err instanceof Error ? err.message : String(err))
+      setStep('error')
     }
-
-    // Simulate TX signature
-    const fakeSig = Array.from({ length: 64 }, () =>
-      '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'[
-        Math.floor(Math.random() * 62)
-      ]
-    ).join('')
-
-    setTxSig(fakeSig)
-    addPayrollRun({
-      date: today,
-      totalAmount: totalPayroll,
-      employeeCount: employees.length,
-      txSignature: fakeSig,
-      status: 'completed',
-    })
-    setStep('complete')
   }
 
   const reset = () => {
     setStep('review')
     setProgress(0)
     setCurrentEmp('')
-    setTxSig('')
+    setTxSigs([])
+    setErrorMsg('')
   }
 
   if (!connected) {
@@ -80,6 +108,7 @@ export default function RunPayroll() {
         </p>
       </div>
 
+      {/* ── Review step ─────────────────────────────────────────────────── */}
       {step === 'review' && (
         <>
           {/* Privacy notice */}
@@ -91,7 +120,8 @@ export default function RunPayroll() {
           }}>
             <Lock size={16} color="#a78bfa" style={{ flexShrink: 0, marginTop: 1 }} />
             <div style={{ fontSize: 13, color: '#c4b5fd' }}>
-              <strong>Privacy guaranteed:</strong> Salary amounts are encrypted using ZK proofs. Recipient addresses are one-time stealth addresses. No one on-chain can see who received what amount.
+              <strong>Privacy guaranteed:</strong> Salary amounts are encrypted using ZK proofs. Recipient
+              addresses are one-time stealth addresses. No one on-chain can see who received what amount.
             </div>
           </div>
 
@@ -184,7 +214,8 @@ export default function RunPayroll() {
           }}>
             <Info size={15} color="#64748b" />
             <div style={{ fontSize: 13, color: '#64748b' }}>
-              Paying from: <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
+              Paying from:{' '}
+              <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
                 {publicKey?.toString().slice(0, 8)}...{publicKey?.toString().slice(-4)}
               </span>
             </div>
@@ -212,6 +243,33 @@ export default function RunPayroll() {
         </>
       )}
 
+      {/* ── Registering step ────────────────────────────────────────────── */}
+      {step === 'registering' && (
+        <div style={{
+          backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
+          borderRadius: 16, padding: 48, textAlign: 'center',
+        }}>
+          <div style={{
+            width: 72, height: 72, borderRadius: 20,
+            background: 'rgba(139,92,246,0.15)', border: '1px solid rgba(139,92,246,0.3)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 24px',
+          }}>
+            <UserPlus size={32} color="#a78bfa" />
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Setting Up Umbra</h2>
+          <p style={{ color: '#64748b', fontSize: 15 }}>
+            Registering your wallet with the Umbra privacy protocol.
+            Approve the signing prompt in Phantom.
+          </p>
+          <div style={{ marginTop: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#a78bfa' }}>
+            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
+            <span style={{ fontSize: 14 }}>Generating ZK registration proof…</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirming step ─────────────────────────────────────────────── */}
       {step === 'confirming' && (
         <div style={{
           backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
@@ -230,6 +288,7 @@ export default function RunPayroll() {
         </div>
       )}
 
+      {/* ── Processing step ─────────────────────────────────────────────── */}
       {step === 'processing' && (
         <div style={{
           backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
@@ -245,11 +304,11 @@ export default function RunPayroll() {
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Processing Payroll</h2>
           <p style={{ color: '#64748b', marginBottom: 28 }}>
-            Generating ZK proofs and sending encrypted payments...
+            Generating ZK proofs and sending encrypted payments…
           </p>
           <div style={{ marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-              <span>Sending to {currentEmp}...</span>
+              <span>Sending to {currentEmp}…</span>
               <span>{progress}%</span>
             </div>
             <div style={{ height: 6, backgroundColor: '#1e1e3a', borderRadius: 100 }}>
@@ -265,6 +324,7 @@ export default function RunPayroll() {
         </div>
       )}
 
+      {/* ── Complete step ───────────────────────────────────────────────── */}
       {step === 'complete' && (
         <div style={{
           backgroundColor: '#0f0f1a', border: '1px solid rgba(16,185,129,0.3)',
@@ -280,34 +340,43 @@ export default function RunPayroll() {
           </div>
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Payroll Complete!</h2>
           <p style={{ color: '#64748b', marginBottom: 8 }}>
-            {employees.length} employees paid privately — ${totalPayroll.toLocaleString()} USDC sent.
+            {employees.length} employee{employees.length !== 1 ? 's' : ''} paid privately —{' '}
+            ${totalPayroll.toLocaleString()} USDC sent.
           </p>
           <p style={{ color: '#4a5568', fontSize: 13, marginBottom: 28 }}>
             All transfers were encrypted on-chain using Umbra stealth addresses.
           </p>
 
-          <div style={{
-            backgroundColor: '#16162a', borderRadius: 10, padding: '12px 16px',
-            marginBottom: 28, fontFamily: 'monospace', fontSize: 12, color: '#64748b',
-            wordBreak: 'break-all',
-          }}>
-            TX: {txSig}
-          </div>
+          {txSigs.length > 0 && (
+            <div style={{
+              backgroundColor: '#16162a', borderRadius: 10, padding: '12px 16px',
+              marginBottom: 28, fontFamily: 'monospace', fontSize: 11, color: '#64748b',
+              wordBreak: 'break-all', textAlign: 'left',
+            }}>
+              {txSigs.map((sig, i) => (
+                <div key={sig} style={{ marginBottom: i < txSigs.length - 1 ? 4 : 0 }}>
+                  TX {i + 1}: {sig}
+                </div>
+              ))}
+            </div>
+          )}
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <a
-              href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
-              target="_blank" rel="noopener noreferrer"
-              style={{
-                backgroundColor: '#16162a', border: '1px solid #1e1e3a',
-                color: '#e2e8f0', textDecoration: 'none',
-                padding: '10px 20px', borderRadius: 10,
-                fontSize: 14, fontWeight: 600,
-                display: 'flex', alignItems: 'center', gap: 6,
-              }}
-            >
-              <ExternalLink size={14} /> View on Explorer
-            </a>
+            {txSigs.length > 0 && (
+              <a
+                href={`https://explorer.solana.com/tx/${txSigs[txSigs.length - 1]}?cluster=devnet`}
+                target="_blank" rel="noopener noreferrer"
+                style={{
+                  backgroundColor: '#16162a', border: '1px solid #1e1e3a',
+                  color: '#e2e8f0', textDecoration: 'none',
+                  padding: '10px 20px', borderRadius: 10,
+                  fontSize: 14, fontWeight: 600,
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                <ExternalLink size={14} /> View on Explorer
+              </a>
+            )}
             <button onClick={reset} style={{
               background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
               color: 'white', border: 'none', borderRadius: 10,
@@ -321,6 +390,7 @@ export default function RunPayroll() {
         </div>
       )}
 
+      {/* ── Error step ──────────────────────────────────────────────────── */}
       {step === 'error' && (
         <div style={{
           backgroundColor: '#0f0f1a', border: '1px solid rgba(239,68,68,0.3)',
@@ -328,7 +398,19 @@ export default function RunPayroll() {
         }}>
           <AlertCircle size={40} color="#f87171" style={{ margin: '0 auto 20px' }} />
           <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Transaction Failed</h2>
-          <p style={{ color: '#64748b', marginBottom: 28 }}>Something went wrong. Please try again.</p>
+          {errorMsg && (
+            <div style={{
+              backgroundColor: '#16162a', borderRadius: 10,
+              padding: '10px 14px', marginBottom: 20,
+              fontSize: 12, color: '#f87171', fontFamily: 'monospace',
+              wordBreak: 'break-word', textAlign: 'left',
+            }}>
+              {errorMsg}
+            </div>
+          )}
+          <p style={{ color: '#64748b', marginBottom: 28 }}>
+            Make sure your wallet is connected, you have USDC on devnet, and employees are registered.
+          </p>
           <button onClick={reset} style={{
             background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
             color: 'white', border: 'none', borderRadius: 10,
@@ -348,5 +430,5 @@ export default function RunPayroll() {
 }
 
 function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
+  return new Promise<void>(resolve => setTimeout(resolve, ms))
 }

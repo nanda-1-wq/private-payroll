@@ -1,59 +1,104 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useWallet } from '@solana/wallet-adapter-react'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui'
 import {
   Eye, Lock, ArrowDownToLine, CheckCircle, Loader2,
-  Shield, ExternalLink, RefreshCw, Clock, DollarSign
+  Shield, ExternalLink, RefreshCw, Clock, DollarSign, UserPlus,
 } from 'lucide-react'
+import {
+  initUmbraClient,
+  isRegistered,
+  registerWithUmbra,
+  scanForPayroll,
+  claimAndWithdraw,
+  formatMicroUsdc,
+  type ScanResult,
+  type UmbraClient,
+} from '../lib/umbra'
 
-// Mock encrypted balance for demo
-const MOCK_BALANCE = 8000
-const MOCK_HISTORY = [
-  { id: '1', date: '2025-04-01', amount: 8000, status: 'available' as const },
-  { id: '2', date: '2025-03-01', amount: 8000, status: 'withdrawn' as const },
-  { id: '3', date: '2025-02-01', amount: 8000, status: 'withdrawn' as const },
-]
-
-type WithdrawState = 'idle' | 'scanning' | 'generating' | 'confirming' | 'processing' | 'done'
+type LoadState = 'idle' | 'registering' | 'scanning' | 'ready' | 'error'
+type WithdrawState = 'idle' | 'generating' | 'confirming' | 'processing' | 'done'
 
 export default function EmployeeView() {
-  const { connected, publicKey } = useWallet()
+  const { connected, publicKey, wallet } = useWallet()
+
+  // Client + scan state
+  const [client, setClient] = useState<UmbraClient | null>(null)
+  const [loadState, setLoadState] = useState<LoadState>('idle')
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null)
+  const [loadError, setLoadError] = useState('')
+
+  // Withdraw state
   const [withdrawState, setWithdrawState] = useState<WithdrawState>('idle')
-  const [scanProgress, setScanProgress] = useState(0)
-  const [balance, setBalance] = useState(MOCK_BALANCE)
-  const [withdrawn, setWithdrawn] = useState(false)
-  const [txSig, setTxSig] = useState('')
+  const [withdrawTx, setWithdrawTx] = useState('')
+  const [withdrawError, setWithdrawError] = useState('')
 
-  const handleWithdraw = async () => {
-    setWithdrawState('scanning')
-    setScanProgress(0)
+  // ── Auto-initialise + scan on wallet connect ─────────────────────────────
+  const initAndScan = useCallback(async () => {
+    if (!publicKey || !wallet) return
+    setLoadState('idle')
+    setLoadError('')
+    setScanResult(null)
+    setClient(null)
 
-    // Simulate stealth address scan
-    for (let i = 0; i <= 100; i += 10) {
-      setScanProgress(i)
-      await delay(120)
+    try {
+      // 1. Create Umbra client
+      const c = await initUmbraClient(wallet, publicKey.toBase58())
+
+      // 2. Register if needed
+      const registered = await isRegistered(c)
+      if (!registered) {
+        setLoadState('registering')
+        await registerWithUmbra(c)
+      }
+
+      setClient(c)
+
+      // 3. Scan for payroll UTXOs
+      setLoadState('scanning')
+      const result = await scanForPayroll(c)
+      setScanResult(result)
+      setLoadState('ready')
+    } catch (err: unknown) {
+      console.error('Employee view init failed:', err)
+      setLoadError(err instanceof Error ? err.message : String(err))
+      setLoadState('error')
     }
+  }, [publicKey, wallet])
 
+  useEffect(() => {
+    if (connected && publicKey && wallet) {
+      initAndScan()
+    }
+  }, [connected, publicKey?.toBase58()]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Withdraw handler ─────────────────────────────────────────────────────
+  const handleWithdraw = async () => {
+    if (!client || !scanResult || scanResult.received.length === 0) return
+    setWithdrawError('')
     setWithdrawState('generating')
-    await delay(1000)
 
-    setWithdrawState('confirming')
-    await delay(1500)
+    try {
+      setWithdrawState('confirming')
+      setWithdrawState('processing')
 
-    setWithdrawState('processing')
-    await delay(1200)
+      const sig = await claimAndWithdraw(
+        client,
+        scanResult.received,
+        scanResult.totalMicroUsdc
+      )
 
-    const fakeSig = Array.from({ length: 64 }, () =>
-      '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'[
-        Math.floor(Math.random() * 62)
-      ]
-    ).join('')
-    setTxSig(fakeSig)
-    setWithdrawn(true)
-    setBalance(0)
-    setWithdrawState('done')
+      setWithdrawTx(sig)
+      setScanResult({ received: [], totalMicroUsdc: 0n })
+      setWithdrawState('done')
+    } catch (err: unknown) {
+      console.error('Withdraw failed:', err)
+      setWithdrawError(err instanceof Error ? err.message : String(err))
+      setWithdrawState('idle')
+    }
   }
 
+  // ── Not connected ────────────────────────────────────────────────────────
   if (!connected) {
     return (
       <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center', padding: '80px 24px' }}>
@@ -73,9 +118,7 @@ export default function EmployeeView() {
         <p style={{ color: '#64748b', fontSize: 16, marginBottom: 32, lineHeight: 1.6 }}>
           Connect your wallet to view your encrypted salary balance. Only you can see your own payment.
         </p>
-
         <WalletMultiButton />
-
         <div style={{
           marginTop: 40,
           backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
@@ -99,6 +142,96 @@ export default function EmployeeView() {
     )
   }
 
+  // ── Loading / registering / scanning ─────────────────────────────────────
+  if (loadState !== 'ready' && loadState !== 'error') {
+    const messages: Record<string, string> = {
+      idle: 'Initialising Umbra client…',
+      registering: 'Registering with Umbra privacy protocol…',
+      scanning: 'Scanning stealth addresses for your payments…',
+    }
+    return (
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>My Salary</h1>
+          <p style={{ color: '#64748b', fontSize: 14 }}>
+            Wallet{' '}
+            <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
+              {publicKey?.toString().slice(0, 6)}…{publicKey?.toString().slice(-4)}
+            </span>
+          </p>
+        </div>
+        <div style={{
+          backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
+          borderRadius: 16, padding: 48, textAlign: 'center',
+        }}>
+          {loadState === 'registering' ? (
+            <UserPlus size={36} color="#a78bfa" style={{ margin: '0 auto 20px' }} />
+          ) : (
+            <div style={{
+              width: 64, height: 64, borderRadius: 16,
+              background: 'rgba(139,92,246,0.12)', border: '1px solid rgba(139,92,246,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+            }}>
+              <Loader2 size={28} color="#a78bfa" style={{ animation: 'spin 1s linear infinite' }} />
+            </div>
+          )}
+          <p style={{ color: '#94a3b8', fontSize: 15 }}>
+            {messages[loadState] ?? 'Loading…'}
+          </p>
+          {loadState === 'registering' && (
+            <p style={{ color: '#64748b', fontSize: 13, marginTop: 8 }}>
+              Approve the signing prompt in Phantom to continue.
+            </p>
+          )}
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  // ── Error state ──────────────────────────────────────────────────────────
+  if (loadState === 'error') {
+    return (
+      <div style={{ maxWidth: 680, margin: '0 auto' }}>
+        <div style={{ marginBottom: 32 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>My Salary</h1>
+        </div>
+        <div style={{
+          backgroundColor: '#0f0f1a', border: '1px solid rgba(239,68,68,0.3)',
+          borderRadius: 16, padding: 36, textAlign: 'center',
+        }}>
+          <p style={{ color: '#f87171', fontSize: 15, marginBottom: 16 }}>Failed to load balance</p>
+          {loadError && (
+            <div style={{
+              backgroundColor: '#16162a', borderRadius: 8, padding: '10px 14px',
+              fontSize: 12, color: '#94a3b8', fontFamily: 'monospace',
+              wordBreak: 'break-word', textAlign: 'left', marginBottom: 20,
+            }}>
+              {loadError}
+            </div>
+          )}
+          <button onClick={initAndScan} style={{
+            background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
+            color: 'white', border: 'none', borderRadius: 10,
+            padding: '10px 24px', cursor: 'pointer',
+            fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+          }}>
+            <RefreshCw size={14} /> Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Ready — show balance ──────────────────────────────────────────────────
+  const balanceDisplay = scanResult
+    ? `$${formatMicroUsdc(scanResult.totalMicroUsdc)}`
+    : '$0.00'
+  const hasBalance = (scanResult?.totalMicroUsdc ?? 0n) > 0n
+  const isWithdrawn = withdrawState === 'done'
+
   return (
     <div style={{ maxWidth: 680, margin: '0 auto' }}>
       <div style={{ marginBottom: 32 }}>
@@ -106,7 +239,7 @@ export default function EmployeeView() {
         <p style={{ color: '#64748b', fontSize: 14 }}>
           Scanning stealth addresses for wallet{' '}
           <span style={{ color: '#a78bfa', fontFamily: 'monospace' }}>
-            {publicKey?.toString().slice(0, 6)}...{publicKey?.toString().slice(-4)}
+            {publicKey?.toString().slice(0, 6)}…{publicKey?.toString().slice(-4)}
           </span>
         </p>
       </div>
@@ -132,7 +265,6 @@ export default function EmployeeView() {
         borderRadius: 20, padding: '40px 32px', textAlign: 'center',
         marginBottom: 24, position: 'relative', overflow: 'hidden',
       }}>
-        {/* Background glow */}
         <div style={{
           position: 'absolute', top: -40, right: -40,
           width: 200, height: 200,
@@ -144,84 +276,73 @@ export default function EmployeeView() {
           <div style={{ fontSize: 12, fontWeight: 700, letterSpacing: '2px', color: '#64748b', marginBottom: 12 }}>
             ENCRYPTED BALANCE
           </div>
+
           <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', marginBottom: 4 }}>
-            {withdrawn ? (
+            {isWithdrawn ? (
               <span style={{ color: '#4a5568' }}>$0.00</span>
             ) : (
               <span style={{ color: '#f1f5f9' }}>
-                ${balance.toLocaleString()}
-                <span style={{ fontSize: 20, color: '#64748b', fontWeight: 500 }}>.00</span>
+                {balanceDisplay}
+                <span style={{ fontSize: 20, color: '#64748b', fontWeight: 500 }}> USDC</span>
               </span>
             )}
           </div>
-          <div style={{ fontSize: 14, color: '#64748b', marginBottom: 28 }}>USDC • April 2025 Payroll</div>
 
-          {withdrawState === 'idle' && !withdrawn && (
+          <div style={{ fontSize: 14, color: '#64748b', marginBottom: 28 }}>
+            {scanResult?.received.length ?? 0} claimable UTXO{(scanResult?.received.length ?? 0) !== 1 ? 's' : ''} found
+          </div>
+
+          {withdrawState === 'idle' && !isWithdrawn && (
             <button
               onClick={handleWithdraw}
+              disabled={!hasBalance}
               style={{
-                background: 'linear-gradient(135deg, #7c3aed, #06b6d4)',
-                color: 'white', border: 'none', borderRadius: 12,
-                padding: '14px 36px', cursor: 'pointer',
+                background: hasBalance
+                  ? 'linear-gradient(135deg, #7c3aed, #06b6d4)'
+                  : '#1e1e3a',
+                color: hasBalance ? 'white' : '#4a5568',
+                border: 'none', borderRadius: 12,
+                padding: '14px 36px', cursor: hasBalance ? 'pointer' : 'not-allowed',
                 fontSize: 16, fontWeight: 700, fontFamily: 'inherit',
                 display: 'flex', alignItems: 'center', gap: 10,
                 margin: '0 auto',
-                boxShadow: '0 0 40px rgba(124,58,237,0.35)',
+                boxShadow: hasBalance ? '0 0 40px rgba(124,58,237,0.35)' : 'none',
               }}
             >
               <ArrowDownToLine size={18} />
-              Withdraw to Wallet
+              {hasBalance ? 'Withdraw to Wallet' : 'No balance to withdraw'}
             </button>
-          )}
-
-          {withdrawState === 'scanning' && (
-            <div>
-              <div style={{ marginBottom: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#64748b', marginBottom: 6 }}>
-                  <span>Scanning stealth addresses...</span>
-                  <span>{scanProgress}%</span>
-                </div>
-                <div style={{ height: 4, backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 100 }}>
-                  <div style={{
-                    height: '100%', width: `${scanProgress}%`,
-                    background: 'linear-gradient(90deg, #7c3aed, #06b6d4)',
-                    borderRadius: 100, transition: 'width 0.15s',
-                  }} />
-                </div>
-              </div>
-              <div style={{ fontSize: 13, color: '#64748b' }}>Searching blockchain for your payments...</div>
-            </div>
           )}
 
           {withdrawState === 'generating' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#a78bfa' }}>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 14 }}>Generating ZK proof for withdrawal...</span>
+              <span style={{ fontSize: 14 }}>Generating ZK proof for withdrawal…</span>
             </div>
           )}
 
           {withdrawState === 'confirming' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#fbbf24' }}>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 14 }}>Confirm in Phantom wallet...</span>
+              <span style={{ fontSize: 14 }}>Confirm in Phantom wallet…</span>
             </div>
           )}
 
           {withdrawState === 'processing' && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, color: '#06b6d4' }}>
               <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-              <span style={{ fontSize: 14 }}>Broadcasting to Solana...</span>
+              <span style={{ fontSize: 14 }}>Broadcasting to Solana…</span>
             </div>
           )}
 
           {withdrawState === 'done' && (
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#10b981', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#10b981', marginBottom: 12 }}>
                 <CheckCircle size={18} />
                 <span style={{ fontWeight: 700 }}>Successfully withdrawn!</span>
               </div>
               <a
-                href={`https://explorer.solana.com/tx/${txSig}?cluster=devnet`}
+                href={`https://explorer.solana.com/tx/${withdrawTx}?cluster=devnet`}
                 target="_blank" rel="noopener noreferrer"
                 style={{
                   fontSize: 12, color: '#8b5cf6', textDecoration: 'none',
@@ -233,20 +354,45 @@ export default function EmployeeView() {
               </a>
             </div>
           )}
+
+          {withdrawError && (
+            <div style={{
+              marginTop: 16,
+              backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 8,
+              padding: '8px 12px', fontSize: 12, color: '#f87171',
+              fontFamily: 'monospace', wordBreak: 'break-word', textAlign: 'left',
+            }}>
+              {withdrawError}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Stats row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
         {[
-          { icon: DollarSign, label: 'Total Earned (YTD)', value: '$24,000', color: '#8b5cf6' },
-          { icon: CheckCircle, label: 'Payments Received', value: '3', color: '#10b981' },
-          { icon: Clock, label: 'Next Payment', value: 'May 1', color: '#06b6d4' },
+          {
+            icon: DollarSign,
+            label: 'Available Balance',
+            value: isWithdrawn ? '$0.00' : balanceDisplay,
+            color: '#8b5cf6',
+          },
+          {
+            icon: CheckCircle,
+            label: 'Claimable UTXOs',
+            value: String(isWithdrawn ? 0 : (scanResult?.received.length ?? 0)),
+            color: '#10b981',
+          },
+          {
+            icon: Clock,
+            label: 'Last Scan',
+            value: 'Just now',
+            color: '#06b6d4',
+          },
         ].map(s => (
           <div key={s.label} style={{
             backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a',
-            borderRadius: 12, padding: '16px',
-            textAlign: 'center',
+            borderRadius: 12, padding: '16px', textAlign: 'center',
           }}>
             <s.icon size={18} color={s.color} style={{ margin: '0 auto 8px' }} />
             <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', marginBottom: 2 }}>{s.value}</div>
@@ -255,53 +401,37 @@ export default function EmployeeView() {
         ))}
       </div>
 
-      {/* Payment history */}
+      {/* Rescan button */}
       <div style={{ backgroundColor: '#0f0f1a', border: '1px solid #1e1e3a', borderRadius: 16, padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <h3 style={{ fontSize: 15, fontWeight: 700 }}>Payment History</h3>
-          <button style={{
-            background: 'none', border: '1px solid #1e1e3a', borderRadius: 8,
-            padding: '6px 10px', color: '#64748b', cursor: 'pointer', fontFamily: 'inherit',
-            display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
-          }}>
-            <RefreshCw size={12} /> Refresh
+          <h3 style={{ fontSize: 15, fontWeight: 700 }}>Scan Status</h3>
+          <button
+            onClick={initAndScan}
+            style={{
+              background: 'none', border: '1px solid #1e1e3a', borderRadius: 8,
+              padding: '6px 10px', color: '#64748b', cursor: 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', gap: 6, fontSize: 12,
+            }}
+          >
+            <RefreshCw size={12} /> Re-scan
           </button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {MOCK_HISTORY.map(payment => (
-            <div key={payment.id} style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '14px 16px', backgroundColor: '#16162a', borderRadius: 10,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 9,
-                  backgroundColor: payment.status === 'available' ? 'rgba(139,92,246,0.15)' : 'rgba(16,185,129,0.1)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  {payment.status === 'available'
-                    ? <Lock size={15} color="#a78bfa" />
-                    : <CheckCircle size={15} color="#10b981" />
-                  }
-                </div>
-                <div>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{payment.date} Payroll</div>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
-                    {payment.status === 'available' ? 'Available to withdraw' : 'Withdrawn to wallet'}
-                  </div>
-                </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#e2e8f0' }}>
-                  ${payment.amount.toLocaleString()}
-                  <span style={{ fontSize: 11, color: '#4a5568', marginLeft: 4 }}>USDC</span>
-                </div>
-                <div style={{ fontSize: 11, fontWeight: 500, color: payment.status === 'available' ? '#a78bfa' : '#10b981' }}>
-                  {payment.status === 'available' ? '● Available' : '✓ Withdrawn'}
-                </div>
-              </div>
-            </div>
-          ))}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: '#64748b' }}>Stealth pool tree scanned</span>
+            <span style={{ color: '#10b981', fontWeight: 600 }}>Tree 0 ✓</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: '#64748b' }}>UTXOs found</span>
+            <span style={{ color: '#f1f5f9', fontWeight: 600 }}>{scanResult?.received.length ?? 0}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+            <span style={{ color: '#64748b' }}>Total claimable</span>
+            <span style={{ color: '#f1f5f9', fontWeight: 600 }}>
+              {isWithdrawn ? '$0.00' : balanceDisplay} USDC
+            </span>
+          </div>
         </div>
       </div>
 
@@ -310,8 +440,4 @@ export default function EmployeeView() {
       `}</style>
     </div>
   )
-}
-
-function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms))
 }
