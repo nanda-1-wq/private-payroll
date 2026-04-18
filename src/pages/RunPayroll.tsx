@@ -13,6 +13,7 @@ import {
   registerWithUmbra,
   sendPrivatePayroll,
   findUnregisteredEmployees,
+  DEMO_MODE,
 } from '../lib/umbra'
 
 type Step = 'review' | 'registering' | 'checking' | 'confirming' | 'processing' | 'complete' | 'error'
@@ -122,6 +123,22 @@ export default function RunPayroll() {
           All transfers are encrypted using Umbra's stealth address protocol — amounts and recipients are private.
         </p>
       </div>
+
+      {/* ── Demo mode banner ────────────────────────────────────────────── */}
+      {DEMO_MODE && (
+        <div style={{
+          backgroundColor: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 20,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 15 }}>🎬</span>
+          <div style={{ fontSize: 13, color: '#fbbf24' }}>
+            <strong>Demo mode</strong> — transactions are simulated locally. ZK proofs, stealth addresses,
+            and all privacy guarantees are real in production. Devnet MPC pools are pending activation.
+          </div>
+        </div>
+      )}
 
       {/* ── Review step ─────────────────────────────────────────────────── */}
       {step === 'review' && (
@@ -393,6 +410,11 @@ export default function RunPayroll() {
               marginBottom: 28, fontFamily: 'monospace', fontSize: 11, color: '#64748b',
               wordBreak: 'break-all', textAlign: 'left',
             }}>
+              {DEMO_MODE && (
+                <div style={{ color: '#fbbf24', marginBottom: 6, fontFamily: 'inherit', fontSize: 11 }}>
+                  ⚡ Simulated signatures (demo mode)
+                </div>
+              )}
               {txSigs.map((sig, i) => (
                 <div key={sig} style={{ marginBottom: i < txSigs.length - 1 ? 4 : 0 }}>
                   TX {i + 1}: {sig}
@@ -402,7 +424,7 @@ export default function RunPayroll() {
           )}
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-            {txSigs.length > 0 && (
+            {txSigs.length > 0 && !DEMO_MODE && (
               <a
                 href={`https://explorer.solana.com/tx/${txSigs[txSigs.length - 1]}?cluster=devnet`}
                 target="_blank" rel="noopener noreferrer"

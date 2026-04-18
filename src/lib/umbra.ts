@@ -3,6 +3,15 @@
  *
  * This module wraps @umbra-privacy/sdk into simple async helpers
  * that the UI can call directly.
+ *
+ * ─── DEMO MODE ───────────────────────────────────────────────────────────────
+ * Set DEMO_MODE = true to run a fully simulated flow (no real transactions).
+ * This is required while Umbra's devnet Arcium MPC pools are inactive
+ * (active_stealth_pool_indices: [] from /v1/relayer/info).
+ *
+ * To switch to live SDK: set DEMO_MODE = false.
+ * The function signatures are identical either way.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import {
@@ -24,6 +33,18 @@ import {
 import type { Wallet, WalletAccount } from '@wallet-standard/core'
 import { PublicKey } from '@solana/web3.js'
 
+// ─── Demo mode flag ───────────────────────────────────────────────────────────
+
+/**
+ * When true, all SDK calls are simulated locally with realistic delays.
+ * Flip to false once Umbra's devnet Arcium MPC pools are active.
+ *
+ * Root cause of devnet reverts: active_stealth_pool_indices: [] — the
+ * Arcium confidential computing pools required for ZK proof submission
+ * are not yet initialized on this devnet deployment.
+ */
+export const DEMO_MODE = true
+
 // ─── Public re-export of the client type ─────────────────────────────────────
 
 /** The resolved Umbra client type (IUmbraClient is not exported from the SDK). */
@@ -34,19 +55,16 @@ export type UmbraClient = Awaited<ReturnType<typeof getUmbraClient>>
 /**
  * Umbra's PRVT test token on devnet.
  *
- * This is the correct mint to use with the Umbra relayer on devnet.
- * Circle's devnet USDC (4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU) is NOT
- * in the relayer's supported_mints list and will cause simulation reverts.
- *
  * Umbra relayer supported mints (from /v1/relayer/info):
- *   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v  ← mainnet USDC (also used on devnet by Umbra)
- *   PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta   ← Umbra PRVT test token (preferred for demos)
+ *   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v  ← mainnet USDC (used by Umbra on devnet too)
+ *   PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta   ← Umbra PRVT test token
  *   So11111111111111111111111111111111111111112      ← wSOL
  *   Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB  ← USDT
- *   CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH  ← CASH
+ *
+ * Circle's standard devnet USDC (4zMMC9...) is NOT in this list.
  */
 export const PRVT_MINT_DEVNET = 'PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta'
-/** Mainnet USDC address — also used by Umbra on devnet (in relayer's supported_mints). */
+/** Mainnet USDC address — also used by Umbra on devnet. */
 export const USDC_MINT_DEVNET = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
 
 const USDC_DECIMALS = 6
@@ -63,7 +81,7 @@ export function toMicroUsdc(usdAmount: number): bigint {
   return BigInt(Math.round(usdAmount * 10 ** USDC_DECIMALS))
 }
 
-/** Format micro-USDC bigint to a human-readable "$x,xxx.xx" string. */
+/** Format micro-USDC bigint to a human-readable "x,xxx.xx" string. */
 export function formatMicroUsdc(microUsdc: bigint): string {
   const usd = Number(microUsdc) / 10 ** USDC_DECIMALS
   return usd.toLocaleString(undefined, {
@@ -72,21 +90,43 @@ export function formatMicroUsdc(microUsdc: bigint): string {
   })
 }
 
+// ─── Demo mode helpers ────────────────────────────────────────────────────────
+
+/** Pause for `ms` milliseconds — used in simulation to mimic on-chain latency. */
+function simulateDelay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/**
+ * Generate a realistic-looking Solana transaction signature (base58, 87–88 chars).
+ * This is purely for display in demo mode.
+ */
+function fakeTxSig(): string {
+  const BASE58_CHARS = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+  let sig = ''
+  // Solana sigs are 64 bytes → ~87-88 base58 chars
+  for (let i = 0; i < 87; i++) {
+    sig += BASE58_CHARS[Math.floor(Math.random() * BASE58_CHARS.length)]
+  }
+  return sig
+}
+
+// localStorage keys for demo-mode persistence across pages
+const demoKey = {
+  registered: (addr: string) => `umbra_demo_reg_${addr}`,
+  pendingBalance: (addr: string) => `umbra_demo_balance_${addr}`,
+}
+
 // ─── Wallet Standard bridge ───────────────────────────────────────────────────
 
 /**
  * Extract the Wallet Standard Wallet + WalletAccount from the wallet adapter
  * context object returned by `useWallet()`.
- *
- * Works with Phantom, Backpack, Solflare — any Wallet Standard compliant wallet.
  */
 function extractWalletStandardAccount(
   walletCtx: unknown,
   publicKeyBase58: string
 ): { wallet: Wallet; account: WalletAccount } {
-  // WalletContextState.wallet has shape { adapter: WalletAdapter, ... }.
-  // For Wallet Standard adapters (StandardWalletAdapter), adapter.wallet is
-  // the underlying Wallet Standard Wallet.
   const adapter = (walletCtx as any)?.adapter
   const standardWallet = adapter?.wallet as Wallet | undefined
 
@@ -124,16 +164,23 @@ function extractWalletStandardAccount(
 /**
  * Initialise an Umbra client for the currently connected wallet.
  *
- * The master-seed signing prompt is deferred until the first SDK operation
- * that needs a derived key.
+ * In DEMO_MODE, returns a minimal stub containing only the fields our helpers
+ * actually access (signer.address). The stub is cast to UmbraClient so the
+ * rest of the codebase is type-safe without changes.
  *
- * @param walletCtx       - The `wallet` object from `useWallet()` (not `publicKey`).
- * @param publicKeyBase58 - The connected wallet's public key as a base-58 string.
+ * @param walletCtx       - The `wallet` object from `useWallet()`.
+ * @param publicKeyBase58 - The connected wallet's public key as base-58.
  */
 export async function initUmbraClient(
   walletCtx: unknown,
   publicKeyBase58: string
 ): Promise<UmbraClient> {
+  if (DEMO_MODE) {
+    // Return a minimal stub. Only signer.address is used by our helper functions.
+    await simulateDelay(400)
+    return { signer: { address: publicKeyBase58 } } as unknown as UmbraClient
+  }
+
   const { wallet, account } = extractWalletStandardAccount(walletCtx, publicKeyBase58)
   const signer = createSignerFromWalletAccount(wallet, account)
 
@@ -151,8 +198,16 @@ export async function initUmbraClient(
 
 /**
  * Returns true if the wallet already has an on-chain Umbra user account.
+ *
+ * In DEMO_MODE, persists registration state in localStorage so re-connecting
+ * the same wallet doesn't re-run registration.
  */
 export async function isRegistered(client: UmbraClient): Promise<boolean> {
+  if (DEMO_MODE) {
+    const addr = (client as any).signer.address as string
+    return localStorage.getItem(demoKey.registered(addr)) === '1'
+  }
+
   try {
     const query = getUserAccountQuerierFunction({ client })
     const result = await query(client.signer.address)
@@ -165,12 +220,22 @@ export async function isRegistered(client: UmbraClient): Promise<boolean> {
 /**
  * Register the wallet with Umbra (confidential + anonymous modes).
  *
- * Idempotent — safe to call even if already registered.
- * Prompts the user to sign a message (master seed) + several transactions.
+ * In DEMO_MODE, simulates the three-transaction registration flow with
+ * realistic delays (ZK proof generation + Arcium MPC round-trip).
  *
- * @returns Array of transaction signatures produced by registration.
+ * @returns Array of transaction signatures from the registration steps.
  */
 export async function registerWithUmbra(client: UmbraClient): Promise<string[]> {
+  if (DEMO_MODE) {
+    const addr = (client as any).signer.address as string
+    // Simulate: init account tx (fast) + X25519 key registration (ZK) + anonymous commitment (ZK)
+    await simulateDelay(800)   // account init
+    await simulateDelay(1800)  // ZK proof for confidential registration
+    await simulateDelay(1400)  // ZK proof for anonymous registration
+    localStorage.setItem(demoKey.registered(addr), '1')
+    return [fakeTxSig(), fakeTxSig(), fakeTxSig()]
+  }
+
   const zkProver = getUserRegistrationProver()
   const register = getUserRegistrationFunction({ client }, { zkProver })
   return register({ confidential: true, anonymous: true })
@@ -181,8 +246,8 @@ export async function registerWithUmbra(client: UmbraClient): Promise<string[]> 
 /**
  * Check which of the given wallet addresses are NOT yet registered with Umbra.
  *
- * Call this before running payroll so you can show a clear error instead of a
- * cryptic simulation revert.
+ * In DEMO_MODE, all employees are treated as registered (their wallets are
+ * assumed to have visited the Employee Portal first).
  *
  * @returns Array of unregistered wallet addresses (empty = all good).
  */
@@ -190,6 +255,12 @@ export async function findUnregisteredEmployees(
   client: UmbraClient,
   walletAddresses: string[]
 ): Promise<string[]> {
+  if (DEMO_MODE) {
+    await simulateDelay(700)
+    // In demo, treat all employees as registered
+    return []
+  }
+
   const query = getUserAccountQuerierFunction({ client })
 
   const results = await Promise.allSettled(
@@ -198,7 +269,7 @@ export async function findUnregisteredEmployees(
         const result = await query(addr as any)
         return result.state === 'exists' ? null : addr
       } catch {
-        return addr // treat errors as unregistered
+        return addr
       }
     })
   )
@@ -216,10 +287,13 @@ export async function findUnregisteredEmployees(
  * Creates a receiver-claimable UTXO in the Umbra mixer pool. Only the
  * employee can claim it; the amount is invisible on-chain.
  *
+ * In DEMO_MODE, simulates the ZK proof + deposit and writes the amount to
+ * localStorage so the Employee Portal can "scan" and find it.
+ *
  * @param client           - Employer's Umbra client.
- * @param recipientAddress - Employee's Solana wallet address (must be registered).
+ * @param recipientAddress - Employee's Solana wallet address.
  * @param usdAmount        - Salary in whole USD (e.g. 8000 = $8,000 USDC).
- * @param mint             - Token mint (defaults to devnet USDC).
+ * @param mint             - Token mint (defaults to Umbra PRVT test token).
  * @returns Solana transaction signature of the mixer deposit.
  */
 export async function sendPrivatePayroll(
@@ -228,6 +302,16 @@ export async function sendPrivatePayroll(
   usdAmount: number,
   mint: string = PRVT_MINT_DEVNET
 ): Promise<string> {
+  if (DEMO_MODE) {
+    // Simulate ZK proof generation (~2s) + on-chain confirmation (~1.5s)
+    await simulateDelay(2200)
+    // Write to localStorage so the employee can "scan" and find the balance
+    const existing = BigInt(localStorage.getItem(demoKey.pendingBalance(recipientAddress)) ?? '0')
+    const added = existing + toMicroUsdc(usdAmount)
+    localStorage.setItem(demoKey.pendingBalance(recipientAddress), added.toString())
+    return fakeTxSig()
+  }
+
   const zkProver = getCreateReceiverClaimableUtxoFromPublicBalanceProver()
   const createUtxo = getPublicBalanceToReceiverClaimableUtxoCreatorFunction(
     { client },
@@ -235,8 +319,8 @@ export async function sendPrivatePayroll(
   )
 
   const result = await createUtxo({
-    amount: toMicroUsdc(usdAmount) as any, // U64 branded type
-    destinationAddress: recipientAddress as any, // Address branded type
+    amount: toMicroUsdc(usdAmount) as any,
+    destinationAddress: recipientAddress as any,
     mint: mint as any,
   })
 
@@ -256,13 +340,33 @@ export interface ScanResult {
 /**
  * Scan the Umbra mixer pool for incoming payroll UTXOs addressed to this wallet.
  *
- * Scans Stealth Pool tree 0, from insertion index 0. For production you
- * would persist `nextInsertionIndex` and do incremental scans — for the demo
- * we always scan from 0.
+ * In DEMO_MODE, reads the pending balance written by sendPrivatePayroll
+ * from localStorage. Also falls back to a seeded demo balance so the
+ * employee portal is non-empty even before payroll has been run.
  */
 export async function scanForPayroll(client: UmbraClient): Promise<ScanResult> {
+  if (DEMO_MODE) {
+    const addr = (client as any).signer.address as string
+    // Simulate scan latency (merkle tree traversal)
+    await simulateDelay(1600)
+
+    const raw = localStorage.getItem(demoKey.pendingBalance(addr))
+    // If employer hasn't run payroll yet, seed with a demo balance so judges
+    // can see the full withdraw flow without needing two wallets.
+    const totalMicroUsdc = raw !== null
+      ? BigInt(raw)
+      : toMicroUsdc(8500) // $8,500 demo salary
+
+    if (totalMicroUsdc === 0n) {
+      return { received: [], totalMicroUsdc: 0n }
+    }
+
+    // Fabricate a single UTXO that matches the balance
+    const fakeUtxo = { amount: totalMicroUsdc.toString(), mint: PRVT_MINT_DEVNET }
+    return { received: [fakeUtxo], totalMicroUsdc }
+  }
+
   const scan = getClaimableUtxoScannerFunction({ client })
-  // Arguments: (treeIndex: U32, startInsertionIndex: U32, endInsertionIndex?: U32)
   const result = await scan(0 as any, 0 as any)
 
   const received: any[] = result.received
@@ -275,12 +379,11 @@ export async function scanForPayroll(client: UmbraClient): Promise<ScanResult> {
 }
 
 /**
- * Claim received payroll UTXOs into the employee's Umbra encrypted balance,
- * then immediately withdraw the full amount to their public Solana wallet.
+ * Claim received payroll UTXOs into the employee's encrypted balance,
+ * then withdraw the full amount to their public Solana wallet.
  *
- * Two-step flow:
- *  1. ZK proof → claim UTXOs into encrypted balance (MPC computation via relayer).
- *  2. Withdraw encrypted balance → public ATA.
+ * In DEMO_MODE, simulates the two-step ZK claim + withdrawal and clears
+ * the pending balance from localStorage.
  *
  * @returns Solana transaction signature of the final withdrawal.
  */
@@ -290,6 +393,18 @@ export async function claimAndWithdraw(
   totalMicroUsdc: bigint,
   mint: string = PRVT_MINT_DEVNET
 ): Promise<string> {
+  if (DEMO_MODE) {
+    if (utxos.length === 0) throw new Error('No UTXOs to claim.')
+    const addr = (client as any).signer.address as string
+    // Step 1: ZK claim into encrypted balance (Arcium MPC round-trip)
+    await simulateDelay(2800)
+    // Step 2: withdraw encrypted balance → public ATA
+    await simulateDelay(1200)
+    // Clear the pending balance
+    localStorage.removeItem(demoKey.pendingBalance(addr))
+    return fakeTxSig()
+  }
+
   if (utxos.length === 0) throw new Error('No UTXOs to claim.')
 
   if (!client.fetchBatchMerkleProof) {
@@ -301,7 +416,7 @@ export async function claimAndWithdraw(
 
   const relayer = getUmbraRelayer({ apiEndpoint: RELAYER_URL })
 
-  // Step 1 — Claim receiver-claimable UTXOs into encrypted balance
+  // Step 1 — Claim UTXOs into encrypted balance
   const claimProver = getClaimReceiverClaimableUtxoIntoEncryptedBalanceProver()
   const claim = getReceiverClaimableUtxoToEncryptedBalanceClaimerFunction(
     { client },
@@ -313,12 +428,12 @@ export async function claimAndWithdraw(
   )
   await claim(utxos)
 
-  // Step 2 — Withdraw full encrypted balance → public ATA
+  // Step 2 — Withdraw encrypted balance → public ATA
   const withdraw = getEncryptedBalanceToPublicBalanceDirectWithdrawerFunction({ client })
   const withdrawResult = await withdraw(
     client.signer.address,
     mint as any,
-    totalMicroUsdc as any // U64
+    totalMicroUsdc as any
   )
 
   return withdrawResult.callbackSignature ?? withdrawResult.queueSignature

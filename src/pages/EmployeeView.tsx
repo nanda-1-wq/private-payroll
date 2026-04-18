@@ -12,6 +12,7 @@ import {
   scanForPayroll,
   claimAndWithdraw,
   formatMicroUsdc,
+  DEMO_MODE,
   type ScanResult,
   type UmbraClient,
 } from '../lib/umbra'
@@ -244,6 +245,21 @@ export default function EmployeeView() {
         </p>
       </div>
 
+      {/* Demo mode banner */}
+      {DEMO_MODE && (
+        <div style={{
+          backgroundColor: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.3)',
+          borderRadius: 10, padding: '10px 16px', marginBottom: 16,
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 15 }}>🎬</span>
+          <span style={{ fontSize: 13, color: '#fbbf24' }}>
+            <strong>Demo mode</strong> — balance and transactions are simulated. Real ZK proofs run in production.
+          </span>
+        </div>
+      )}
+
       {/* Privacy badge */}
       <div style={{
         backgroundColor: 'rgba(139,92,246,0.08)',
@@ -341,17 +357,23 @@ export default function EmployeeView() {
                 <CheckCircle size={18} />
                 <span style={{ fontWeight: 700 }}>Successfully withdrawn!</span>
               </div>
-              <a
-                href={`https://explorer.solana.com/tx/${withdrawTx}?cluster=devnet`}
-                target="_blank" rel="noopener noreferrer"
-                style={{
-                  fontSize: 12, color: '#8b5cf6', textDecoration: 'none',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                }}
-              >
-                <ExternalLink size={12} />
-                View on Solana Explorer
-              </a>
+              {DEMO_MODE ? (
+                <div style={{ fontSize: 12, color: '#fbbf24', textAlign: 'center' }}>
+                  ⚡ Simulated tx: {withdrawTx?.slice(0, 20)}…
+                </div>
+              ) : (
+                <a
+                  href={`https://explorer.solana.com/tx/${withdrawTx}?cluster=devnet`}
+                  target="_blank" rel="noopener noreferrer"
+                  style={{
+                    fontSize: 12, color: '#8b5cf6', textDecoration: 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  View on Solana Explorer
+                </a>
+              )}
             </div>
           )}
 
