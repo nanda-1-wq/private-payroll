@@ -291,10 +291,9 @@ All Umbra SDK calls are isolated in `src/lib/umbra.ts` behind clean async helper
 
 > _Add screenshots here_
 
-| Landing | Dashboard | Run Payroll | Employee Portal |
-|---------|-----------|-------------|-----------------|
-| ![landing]() | ![dashboard]() | ![payroll]() | ![employee]() |
-
+| Landing | Dashboard | Employees | Run Payroll | My Balance | Compliance |
+|---------|-----------|-----------|-------------|------------|------------|
+| ![landing](screenshots/landing.png) | ![dashboard](screenshots/dashboard.png) | ![employee](screenshots/employee.png) | ![payroll](screenshots/payroll.png) | ![balance](screenshots/balance.png) | ![compliance](screenshots/compliance.png) |
 ---
 
 ## License
