@@ -65,7 +65,7 @@ export default function Landing() {
           </div>
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center' }}>
-            <span style={{
+            <span className="devnet-badge" style={{
               fontSize: 11, fontWeight: 700, letterSpacing: '1px',
               color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.1)',
               border: '1px solid rgba(245, 158, 11, 0.25)',
@@ -108,7 +108,7 @@ export default function Landing() {
       </header>
 
       {/* Hero */}
-      <section style={{ maxWidth: 1200, margin: '0 auto', padding: '100px 24px 80px', textAlign: 'center' }}>
+      <section className="hero-section" style={{ maxWidth: 1200, margin: '0 auto', padding: '100px 24px 80px', textAlign: 'center' }}>
         <div style={{
           position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)',
           width: 800, height: 500,
@@ -303,7 +303,7 @@ export default function Landing() {
 
       {/* CTA */}
       <section style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px 100px' }}>
-        <div style={{
+        <div className="cta-box" style={{
           background: 'linear-gradient(135deg, rgba(124, 58, 237, 0.15), rgba(6, 182, 212, 0.08))',
           border: '1px solid rgba(124, 58, 237, 0.3)',
           borderRadius: 24, padding: '60px 40px', textAlign: 'center',

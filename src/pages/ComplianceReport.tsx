@@ -217,7 +217,7 @@ export default function ComplianceReport() {
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="grid-sidebar" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
         {/* Left panel - generate */}
         <div className="no-print" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24 }}>
@@ -439,7 +439,7 @@ export default function ComplianceReport() {
               </div>
 
               {/* Summary stats */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
+              <div className="grid-3col" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 24 }}>
                 {[
                   { icon: Users, label: 'Active Employees', value: employees.length.toString(), color: '#8b5cf6' },
                   { icon: DollarSign, label: 'Total Disbursed', value: `$${ytdTotal.toLocaleString()}`, color: '#10b981' },
@@ -469,7 +469,8 @@ export default function ComplianceReport() {
                   </div>
                 </div>
 
-                <div style={{ border: `1px solid ${c.border}`, borderRadius: 12, overflow: 'hidden' }}>
+                <div className="table-scroll-wrapper">
+                <div className="table-min-width" style={{ border: `1px solid ${c.border}`, borderRadius: 12, overflow: 'hidden' }}>
                   <div style={{
                     display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
                     padding: '10px 16px',
@@ -509,6 +510,7 @@ export default function ComplianceReport() {
                     <span />
                   </div>
                 </div>
+                </div>{/* table-scroll-wrapper */}
               </div>
 
               {/* Payroll history */}

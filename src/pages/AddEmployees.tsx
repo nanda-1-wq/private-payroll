@@ -91,7 +91,7 @@ export default function AddEmployees() {
         <p style={{ color: c.muted, fontSize: 14 }}>Add employee wallet addresses and salary amounts. All data is encrypted on-chain.</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="grid-sidebar" style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: 24, alignItems: 'start' }}>
         {/* Add form */}
         <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 24 }}>

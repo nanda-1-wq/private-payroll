@@ -161,7 +161,7 @@ export default function RunPayroll() {
           {/* Summary card */}
           <div style={{ backgroundColor: c.cardBg, border: `1px solid ${c.border}`, borderRadius: 16, padding: 24, marginBottom: 20 }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 16, color: c.muted }}>Payroll Summary</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
+            <div className="grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 16, marginBottom: 20 }}>
               {[
                 { icon: Users, label: 'Employees', value: employees.length.toString(), color: '#8b5cf6' },
                 { icon: DollarSign, label: 'Total Amount', value: `$${totalPayroll.toLocaleString()}`, color: '#06b6d4' },

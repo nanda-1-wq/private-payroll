@@ -292,7 +292,7 @@ export default function EmployeeView() {
             ENCRYPTED BALANCE
           </div>
 
-          <div style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', marginBottom: 4 }}>
+          <div className="balance-big" style={{ fontSize: 56, fontWeight: 900, letterSpacing: '-2px', marginBottom: 4 }}>
             {isWithdrawn ? (
               <span style={{ color: 'rgba(255,255,255,0.4)' }}>$0.00</span>
             ) : (
@@ -390,7 +390,7 @@ export default function EmployeeView() {
       </div>
 
       {/* Stats row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
+      <div className="grid-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 24 }}>
         {[
           { icon: DollarSign, label: 'Available Balance', value: isWithdrawn ? '$0.00' : balanceDisplay, color: '#8b5cf6' },
           { icon: CheckCircle, label: 'Claimable UTXOs', value: String(isWithdrawn ? 0 : (scanResult?.received.length ?? 0)), color: '#10b981' },

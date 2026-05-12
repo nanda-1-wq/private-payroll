@@ -34,7 +34,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         zIndex: 50,
         boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)',
       }}>
-        <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 64 }}>
+        <div className="header-inner" style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', height: 64 }}>
           {/* Logo */}
           <Link to="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, marginRight: 48 }}>
             <div style={{
@@ -45,7 +45,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontWeight: 700, fontSize: 18, color: c.logoText, letterSpacing: '-0.5px' }}>
+            <span className="logo-text" style={{ fontWeight: 700, fontSize: 18, color: c.logoText, letterSpacing: '-0.5px' }}>
               Private<span style={{ color: '#8b5cf6' }}>Payroll</span>
             </span>
           </Link>
@@ -76,7 +76,7 @@ export default function Layout({ children }: { children: ReactNode }) {
 
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
             {/* Devnet badge */}
-            <span style={{
+            <span className="devnet-badge" style={{
               fontSize: 11, fontWeight: 600, letterSpacing: '0.5px',
               color: '#f59e0b', backgroundColor: 'rgba(245, 158, 11, 0.12)',
               border: '1px solid rgba(245, 158, 11, 0.3)',
@@ -144,7 +144,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </header>
 
       {/* Main content */}
-      <main style={{ flex: 1, maxWidth: 1280, margin: '0 auto', padding: '40px 24px', width: '100%' }}>
+      <main className="main-content" style={{ flex: 1, maxWidth: 1280, margin: '0 auto', padding: '40px 24px', width: '100%' }}>
         {children}
       </main>
 
